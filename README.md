@@ -34,8 +34,11 @@ python kindle-reader.py --asin B00FO74WXA --seconds 90
 
 # Resume from current page instead of restarting from the cover
 python kindle-reader.py --asin B00FO74WXA --no-restart
+
 ```
 
 On first run, you'll need to log into Amazon in the browser window. Your session is saved to `~/.kindle-reader-profile` so subsequent runs won't require login.
+
+By default, screenshots are saved to `./books/<asin>/pages` (for example `./books/B00FO74WXA/pages`) and created automatically if needed.
 
 Press `Ctrl+C` to stop at any time.

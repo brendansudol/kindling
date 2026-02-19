@@ -5,7 +5,8 @@ Opens a Kindle book in the browser and auto-advances pages
 at a configurable interval so you can read hands-free.
 
 Usage:
-    python kindle-reader.py [--seconds 60] [--asin B00FO74WXA]
+    python kindle-reader.py [--seconds 60] [--asin B00FO74WXA] [--pages 0]
+                            [--no-restart]
 
 On first run, you'll need to log into Amazon manually.
 Your session is saved so subsequent runs won't require login.
@@ -59,6 +60,41 @@ def on_page_turn(page, current, total):
     print(f"Page {current} of {total}" if current and total else "Page turned")
 
 
+def wait_for_page_change(page, previous_page, timeout_seconds=8):
+    """Wait until Kindle reports a new page number (best effort)."""
+    if previous_page is None:
+        page.wait_for_timeout(800)
+        return get_page_info(page)
+
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        current, total = get_page_info(page)
+        if current and current != previous_page:
+            return current, total
+        page.wait_for_timeout(200)
+    return get_page_info(page)
+
+
+def sanitize_slug(value):
+    """Convert a string into a filesystem-safe slug."""
+    return re.sub(r"[^a-zA-Z0-9._-]+", "-", value).strip("-") or "book"
+
+
+def save_page_screenshot(page, screenshots_dir, sequence_number, current=None, total=None):
+    """Save the current viewport to disk and return the saved path."""
+    if current and total:
+        filename = f"capture-{sequence_number:04d}-page-{current:04d}-of-{total:04d}.png"
+    elif current:
+        filename = f"capture-{sequence_number:04d}-page-{current:04d}.png"
+    else:
+        filename = f"capture-{sequence_number:04d}-page-unknown.png"
+
+    screenshot_path = screenshots_dir / filename
+    page.screenshot(path=str(screenshot_path))
+    print(f"Saved screenshot: {screenshot_path}")
+    return screenshot_path
+
+
 def main():
     parser = argparse.ArgumentParser(description="Kindle hands-free page turner")
     parser.add_argument(
@@ -76,6 +112,8 @@ def main():
     args = parser.parse_args()
 
     user_data_dir = Path.home() / ".kindle-reader-profile"
+    screenshots_dir = Path.cwd() / "books" / sanitize_slug(args.asin) / "pages"
+    screenshots_dir.mkdir(parents=True, exist_ok=True)
 
     url = f"https://read.amazon.com/?asin={args.asin}"
 
@@ -111,9 +149,15 @@ def main():
         current, total = get_page_info(page)
         if current and total:
             print(f"On page {current} of {total}.")
+        print(f"Saving page screenshots to {screenshots_dir}")
         print(f"Auto-advancing every {args.seconds}s. Press Ctrl+C to stop.\n")
 
         pages_turned = 0
+        screenshots_taken = 0
+
+        # Capture the page currently on screen before any turns.
+        save_page_screenshot(page, screenshots_dir, screenshots_taken + 1, current, total)
+        screenshots_taken += 1
 
         try:
             while True:
@@ -127,6 +171,7 @@ def main():
                     print(f"Reached the last page ({current} of {total}). Done!")
                     break
 
+                previous_page = current
                 time.sleep(args.seconds)
 
                 next_btn = page.query_selector("#kr-chevron-right")
@@ -137,8 +182,12 @@ def main():
                 next_btn.click()
                 pages_turned += 1
 
-                current, total = get_page_info(page)
+                current, total = wait_for_page_change(page, previous_page)
                 on_page_turn(page, current, total)
+                save_page_screenshot(
+                    page, screenshots_dir, screenshots_taken + 1, current, total
+                )
+                screenshots_taken += 1
 
         except KeyboardInterrupt:
             print(f"\nStopped after {pages_turned} pages.")
