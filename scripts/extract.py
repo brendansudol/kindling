@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from dotenv import load_dotenv
+
 from playwright.sync_api import sync_playwright
 
 CONTENT_CAPTURE_SELECTORS = (
@@ -1076,6 +1078,8 @@ def save_page_screenshot(
 
 
 def main():
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description="Kindle hands-free page turner")
     parser.add_argument(
         "--seconds", type=int, default=1, help="Seconds to wait per page (default: 1)"
