@@ -6,8 +6,9 @@ at a configurable interval so you can read hands-free.
 
 Usage:
     python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0]
-                            [--no-restart] [--no-metadata]
+                            [--start-page 1] [--no-restart] [--no-metadata]
                             [--include-end-matter] [--refresh-toc]
+                            [--no-restore-position]
 
 On first run, you'll need to log into Amazon manually.
 Your session is saved so subsequent runs won't require login.
@@ -44,6 +45,8 @@ SIDE_MENU_CLOSE_SELECTOR = ".side-menu-close-button"
 GO_TO_PAGE_MENU_ITEM_SELECTOR = 'ion-item[role="listitem"]'
 GO_TO_PAGE_INPUT_SELECTOR = 'ion-modal input[placeholder="page number"]'
 GO_TO_PAGE_BUTTON_SELECTOR = 'ion-modal ion-button[item-i-d="go-to-modal-go-button"]'
+NEXT_PAGE_BUTTON_SELECTOR = "#kr-chevron-right"
+NEXT_PAGE_CONTAINER_SELECTOR = ".kr-chevron-container-right"
 FOOTER_TEXT_SELECTORS = (
     'ion-title[item-i-d="reader-footer-title"] .text-div',
     "ion-footer ion-title",
@@ -331,6 +334,35 @@ def go_to_page(page, page_number):
         return True
     except Exception:
         return False
+
+
+def restore_start_position(page, start_page=None, start_location=None):
+    """Best-effort: restore the reader to the position captured at startup."""
+    try:
+        dismiss_possible_alert(page)
+    except Exception:
+        pass
+
+    if start_page is not None and start_page > 0:
+        try:
+            if go_to_page(page, start_page):
+                print(f"Info: restored start position to page {start_page}.")
+                return True
+            print(f"Warning: could not restore start position to page {start_page}.")
+            return False
+        except Exception:
+            print(f"Warning: restore to start page {start_page} failed.")
+            return False
+
+    if start_location is not None and start_location > 0:
+        print(
+            "Warning: start position uses location values; "
+            "location-based restore is unavailable."
+        )
+        return False
+
+    print("Warning: no start position was captured; skipping restore.")
+    return False
 
 
 def is_end_matter_title(title):
@@ -691,13 +723,39 @@ def dismiss_possible_alert(page):
         return False
 
 
-def click_next_button(page):
-    """Click the next-page button if available."""
-    next_btn = page.query_selector("#kr-chevron-right")
-    if not next_btn or not next_btn.is_visible():
+def is_selector_visible(page, selector):
+    """Return True when a selector exists and is visible."""
+    try:
+        node = page.locator(selector).first
+        return node.count() > 0 and node.is_visible()
+    except Exception:
         return False
-    next_btn.click()
-    return True
+
+
+def wait_for_next_control(page, timeout_ms=30_000, poll_ms=100):
+    """Wait until a known next-page control is visible."""
+    deadline = time.time() + (timeout_ms / 1000)
+    while time.time() < deadline:
+        if is_selector_visible(page, NEXT_PAGE_BUTTON_SELECTOR) or is_selector_visible(
+            page, NEXT_PAGE_CONTAINER_SELECTOR
+        ):
+            return True
+        page.wait_for_timeout(poll_ms)
+    return False
+
+
+def click_next_button(page):
+    """Click the next-page button or fallback container if available."""
+    for selector in (NEXT_PAGE_BUTTON_SELECTOR, NEXT_PAGE_CONTAINER_SELECTOR):
+        try:
+            next_control = page.query_selector(selector)
+            if not next_control or not next_control.is_visible():
+                continue
+            next_control.click()
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def apply_reader_settings(page):
@@ -862,6 +920,77 @@ def save_metadata(metadata_path, metadata):
     print(f"Saved metadata: {metadata_path}")
 
 
+def build_pages_manifest_payload(target_asin, captured_at, entries):
+    """Build a normalized pages manifest payload for captured screenshots."""
+    page_nav_count = 0
+    location_nav_count = 0
+    unknown_nav_count = 0
+
+    for item in entries:
+        has_page_nav = item.get("page") is not None and item.get("total") is not None
+        has_location_nav = (
+            item.get("location") is not None and item.get("total_location") is not None
+        )
+        if has_page_nav:
+            page_nav_count += 1
+        elif has_location_nav:
+            location_nav_count += 1
+        else:
+            unknown_nav_count += 1
+
+    return {
+        "asin": target_asin,
+        "captured_at": captured_at,
+        "pages": entries,
+        "summary": {
+            "capture_count": len(entries),
+            "page_nav_count": page_nav_count,
+            "location_nav_count": location_nav_count,
+            "unknown_nav_count": unknown_nav_count,
+        },
+    }
+
+
+def save_pages_manifest(manifest_path, payload):
+    """Write pages manifest JSON to disk using an atomic replace."""
+    temp_path = manifest_path.with_suffix(manifest_path.suffix + ".tmp")
+    temp_path.write_text(
+        json.dumps(payload, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(manifest_path)
+
+
+def append_pages_manifest_entry(
+    entries,
+    screenshot_path,
+    sequence_number,
+    book_dir,
+    current=None,
+    total=None,
+    current_location=None,
+    total_location=None,
+):
+    """Append one screenshot record to in-memory pages manifest entries."""
+    try:
+        relative_path = screenshot_path.relative_to(book_dir).as_posix()
+    except Exception:
+        relative_path = str(screenshot_path)
+
+    entries.append(
+        {
+            "index": len(entries),
+            "sequence": sequence_number,
+            "file": screenshot_path.name,
+            "path": relative_path,
+            "page": current,
+            "total": total,
+            "location": current_location,
+            "total_location": total_location,
+        }
+    )
+
+
 def iter_capture_locators(page):
     """Yield visible Kindle content locators in preference order."""
     for selector in CONTENT_CAPTURE_SELECTORS:
@@ -962,6 +1091,12 @@ def main():
         "--pages", type=int, default=0, help="Number of pages to advance (0 = unlimited)"
     )
     parser.add_argument(
+        "--start-page",
+        type=int,
+        default=None,
+        help="Jump to a specific page before capture starts",
+    )
+    parser.add_argument(
         "--no-restart", action="store_true", help="Resume from current page instead of starting from the beginning"
     )
     parser.add_argument(
@@ -979,7 +1114,14 @@ def main():
         action="store_true",
         help="Ignore existing toc.json and rebuild TOC from browser navigation",
     )
+    parser.add_argument(
+        "--no-restore-position",
+        action="store_true",
+        help="Do not return to the starting page when run finishes",
+    )
     args = parser.parse_args()
+    if args.start_page is not None and args.start_page < 1:
+        parser.error("--start-page must be >= 1")
 
     user_data_dir = Path.home() / ".kindle-reader-profile"
     book_dir = Path.cwd() / "books" / sanitize_slug(args.asin)
@@ -987,6 +1129,7 @@ def main():
     screenshots_dir.mkdir(parents=True, exist_ok=True)
     metadata_path = book_dir / "metadata.json"
     toc_path = book_dir / "toc.json"
+    pages_manifest_path = book_dir / "pages.json"
 
     url = f"https://read.amazon.com/?asin={args.asin}"
 
@@ -1052,7 +1195,8 @@ def main():
             print("Login detected! Waiting for book to load...")
 
         # Wait for the reader to be ready
-        page.wait_for_selector("#kr-chevron-right", timeout=30_000)
+        if not wait_for_next_control(page, timeout_ms=30_000):
+            raise TimeoutError("Next-page controls not visible within 30s.")
         if dismiss_possible_alert(page):
             print("Info: dismissed blocking alert.")
         if ensure_fixed_header_ui(page):
@@ -1065,6 +1209,13 @@ def main():
         initial_page, _initial_total, initial_location, _initial_total_location = (
             get_page_info(page)
         )
+        if initial_page is not None:
+            print(f"Info: saved start position page {initial_page}.")
+        elif initial_location is not None:
+            print(f"Info: saved start position location {initial_location}.")
+        else:
+            print("Warning: could not determine starting page/location.")
+
         toc_entries = []
         toc_source = "browser"
         if toc_path.exists() and not args.refresh_toc:
@@ -1125,7 +1276,7 @@ def main():
         else:
             print("TOC content boundary: unavailable (using reader end only).")
 
-        if args.no_restart and toc_source == "browser":
+        if args.start_page is None and args.no_restart and toc_source == "browser":
             if initial_page is not None:
                 if go_to_page(page, initial_page):
                     print(f"Info: restored position to page {initial_page} after TOC scan.")
@@ -1153,8 +1304,16 @@ def main():
                 print("Warning: YJmetadata.jsonp response was not captured.")
             save_metadata(metadata_path, metadata)
 
-        # Navigate to the beginning unless --no-restart is set
-        if not args.no_restart:
+        # Apply requested startup navigation.
+        if args.start_page is not None:
+            print(f"Navigating to start page {args.start_page}...")
+            if go_to_page(page, args.start_page):
+                print(f"Info: jumped to start page {args.start_page}.")
+            else:
+                raise SystemExit(
+                    f"Error: could not navigate to start page {args.start_page}; aborting."
+                )
+        elif not args.no_restart:
             print("Navigating to the beginning...")
             if go_to_cover(page):
                 print("Starting from the cover.")
@@ -1171,18 +1330,45 @@ def main():
 
         pages_turned = 0
         screenshots_taken = 0
+        pages_manifest_entries = []
+        pages_manifest_captured_at = datetime.now(timezone.utc).isoformat()
+        pages_manifest_warning_printed = False
+
+        def save_pages_manifest_best_effort():
+            nonlocal pages_manifest_warning_printed
+            payload = build_pages_manifest_payload(
+                args.asin, pages_manifest_captured_at, pages_manifest_entries
+            )
+            try:
+                save_pages_manifest(pages_manifest_path, payload)
+            except Exception:
+                if not pages_manifest_warning_printed:
+                    print("Warning: failed to write pages.json manifest.")
+                    pages_manifest_warning_printed = True
 
         # Capture the page currently on screen before any turns.
-        save_page_screenshot(
+        sequence_number = screenshots_taken + 1
+        screenshot_path = save_page_screenshot(
             page,
             screenshots_dir,
-            screenshots_taken + 1,
+            sequence_number,
             current,
             total,
             current_location,
             total_location,
         )
         screenshots_taken += 1
+        append_pages_manifest_entry(
+            pages_manifest_entries,
+            screenshot_path,
+            sequence_number,
+            book_dir,
+            current,
+            total,
+            current_location,
+            total_location,
+        )
+        save_pages_manifest_best_effort()
 
         try:
             while True:
@@ -1235,7 +1421,7 @@ def main():
                 time.sleep(args.seconds)
 
                 if not click_next_button(page):
-                    print("Next button not found — likely at the end of the book.")
+                    print("Next-page controls not found — likely at the end of the book.")
                     break
 
                 changed_by_signature, _retries_used = wait_for_turn_content_change(
@@ -1268,27 +1454,45 @@ def main():
                             "Warning: page content did not confirm change within 8s; continuing."
                         )
                 on_page_turn(page, current, total, current_location, total_location)
-                save_page_screenshot(
+                sequence_number = screenshots_taken + 1
+                screenshot_path = save_page_screenshot(
                     page,
                     screenshots_dir,
-                    screenshots_taken + 1,
+                    sequence_number,
                     current,
                     total,
                     current_location,
                     total_location,
                 )
                 screenshots_taken += 1
+                append_pages_manifest_entry(
+                    pages_manifest_entries,
+                    screenshot_path,
+                    sequence_number,
+                    book_dir,
+                    current,
+                    total,
+                    current_location,
+                    total_location,
+                )
+                save_pages_manifest_best_effort()
 
         except KeyboardInterrupt:
             print(f"\nStopped after {pages_turned} pages.")
+        finally:
+            save_pages_manifest_best_effort()
+            if args.no_restore_position:
+                print("Info: start position restore disabled (--no-restore-position).")
+            else:
+                print("Info: restoring start position...")
+                restore_start_position(page, initial_page, initial_location)
 
-        print("Closing in 5 seconds (press Ctrl+C again to close immediately)...")
-        try:
-            time.sleep(5)
-        except KeyboardInterrupt:
-            pass
-
-        context.close()
+            print("Closing in 5 seconds (press Ctrl+C again to close immediately)...")
+            try:
+                time.sleep(5)
+            except KeyboardInterrupt:
+                pass
+            context.close()
 
 
 if __name__ == "__main__":

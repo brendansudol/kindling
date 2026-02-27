@@ -14,7 +14,7 @@ playwright install chromium
 ## Usage
 
 ```bash
-python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc]
+python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position]
 ```
 
 | Flag | Default | Description |
@@ -22,10 +22,12 @@ python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--no-rest
 | `--seconds` | 1 | Seconds to wait per page |
 | `--asin` | B00FO74WXA | Book ASIN (from the Amazon book URL) |
 | `--pages` | 0 | Number of pages to advance (0 = unlimited) |
+| `--start-page` | off | Jump to a specific page before capture starts |
 | `--no-restart` | off | Resume from current page instead of starting from the cover |
 | `--no-metadata` | off | Disable network metadata capture and `metadata.json` output |
 | `--include-end-matter` | off | Disable TOC-based trimming and include end matter |
 | `--refresh-toc` | off | Ignore existing `toc.json` and rebuild TOC from browser |
+| `--no-restore-position` | off | Keep current reader position at exit instead of restoring start position |
 
 ### Examples
 
@@ -39,6 +41,12 @@ python kindle-reader.py --asin B00FO74WXA --seconds 90
 # Resume from current page instead of restarting from the cover
 python kindle-reader.py --asin B00FO74WXA --no-restart
 
+# Jump directly to a specific page before capture starts
+python kindle-reader.py --asin B00FO74WXA --start-page 238 --pages 5
+
+# Keep end position after run (disable default restore-to-start behavior)
+python kindle-reader.py --asin B00FO74WXA --pages 10 --no-restore-position
+
 ```
 
 On first run, you'll need to log into Amazon in the browser window. Your session is saved to `~/.kindle-reader-profile` so subsequent runs won't require login.
@@ -50,9 +58,13 @@ The script also applies a best-effort top-header motion fix to reduce flaky TOC/
 If Kindle exposes location instead of page numbers, screenshot filenames use `loc-<current>-of-<total>`.
 The script also saves intercepted Kindle metadata to `./books/<asin>/metadata.json`.
 The script saves parsed table-of-contents data to `./books/<asin>/toc.json`.
+The script saves a machine-readable page capture manifest to `./books/<asin>/pages.json`.
 If `toc.json` already exists, the script reuses it and skips TOC browser traversal by default.
 By default, if a likely end-matter boundary is detected from TOC entries, capture stops at the last content page/location before that boundary.
+By default, the script returns to your starting page when the run ends (including Ctrl+C interruptions).
 Use `--include-end-matter` to capture through the full book.
 Use `--refresh-toc` to force rebuilding TOC from the browser.
+Use `--start-page` to begin capture from a specific page.
+Use `--no-restore-position` to keep your current end position instead.
 
 Press `Ctrl+C` to stop at any time.
