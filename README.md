@@ -14,7 +14,7 @@ playwright install chromium
 ## Usage
 
 ```bash
-python kindle-reader.py [--seconds 60] [--asin B00FO74WXA] [--pages 0]
+python kindle-reader.py [--seconds 60] [--asin B00FO74WXA] [--pages 0] [--no-restart] [--no-metadata]
 ```
 
 | Flag | Default | Description |
@@ -22,6 +22,8 @@ python kindle-reader.py [--seconds 60] [--asin B00FO74WXA] [--pages 0]
 | `--seconds` | 60 | Seconds to wait per page |
 | `--asin` | B00FO74WXA | Book ASIN (from the Amazon book URL) |
 | `--pages` | 0 | Number of pages to advance (0 = unlimited) |
+| `--no-restart` | off | Resume from current page instead of starting from the cover |
+| `--no-metadata` | off | Disable network metadata capture and `metadata.json` output |
 
 ### Examples
 
@@ -40,5 +42,9 @@ python kindle-reader.py --asin B00FO74WXA --no-restart
 On first run, you'll need to log into Amazon in the browser window. Your session is saved to `~/.kindle-reader-profile` so subsequent runs won't require login.
 
 By default, screenshots are saved to `./books/<asin>/pages` (for example `./books/B00FO74WXA/pages`) and created automatically if needed.
+Screenshots target the main Kindle content element for cleaner captures, with an automatic viewport fallback if that element is unavailable.
+The script also applies reader settings (Single Column + Amazon Ember) for more consistent captures when possible.
+If Kindle exposes location instead of page numbers, screenshot filenames use `loc-<current>-of-<total>`.
+The script also saves intercepted Kindle metadata to `./books/<asin>/metadata.json`.
 
 Press `Ctrl+C` to stop at any time.
