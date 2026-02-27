@@ -5,8 +5,9 @@ Opens a Kindle book in the browser and auto-advances pages
 at a configurable interval so you can read hands-free.
 
 Usage:
-    python kindle-reader.py [--seconds 60] [--asin B00FO74WXA] [--pages 0]
+    python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0]
                             [--no-restart] [--no-metadata]
+                            [--include-end-matter] [--refresh-toc]
 
 On first run, you'll need to log into Amazon manually.
 Your session is saved so subsequent runs won't require login.
@@ -29,7 +30,20 @@ CONTENT_CAPTURE_SELECTORS = (
 )
 ALERT_ROOT_SELECTORS = ("ion-alert", '[role="alertdialog"]')
 READER_HEADER_SELECTOR = "#reader-header"
+TOP_CHROME_SELECTOR = ".top-chrome"
 READER_SETTINGS_TEST_ID = "top_menu_reader_settings"
+TOC_BUTTON_TEST_ID = "top_menu_table_of_contents"
+NAVIGATION_MENU_TEST_ID = "top_menu_navigation_menu"
+READER_MENU_LABEL = "Reader menu"
+TOC_ITEM_SELECTOR = "ion-list ion-item"
+TOC_BUTTON_SELECTOR = "button.toc-item-button"
+TOC_CHAPTER_TITLE_SELECTOR = ".chapter-title"
+TOC_SCROLLABLE_SELECTOR = ".side-menu-content .scrollable-content"
+TOC_BOTTOM_SELECTOR = ".toc-bottom"
+SIDE_MENU_CLOSE_SELECTOR = ".side-menu-close-button"
+GO_TO_PAGE_MENU_ITEM_SELECTOR = 'ion-item[role="listitem"]'
+GO_TO_PAGE_INPUT_SELECTOR = 'ion-modal input[placeholder="page number"]'
+GO_TO_PAGE_BUTTON_SELECTOR = 'ion-modal ion-button[item-i-d="go-to-modal-go-button"]'
 FOOTER_TEXT_SELECTORS = (
     'ion-title[item-i-d="reader-footer-title"] .text-div',
     "ion-footer ion-title",
@@ -44,6 +58,22 @@ ROMAN_NUMERALS = {
     "D": 500,
     "M": 1000,
 }
+END_MATTER_PATTERNS = (
+    re.compile(r"acknowledgements", re.IGNORECASE),
+    re.compile(r"^discover more$", re.IGNORECASE),
+    re.compile(r"^extras$", re.IGNORECASE),
+    re.compile(r"about the author", re.IGNORECASE),
+    re.compile(r"meet the author", re.IGNORECASE),
+    re.compile(r"^also by ", re.IGNORECASE),
+    re.compile(r"^copyright$", re.IGNORECASE),
+    re.compile(r" teaser$", re.IGNORECASE),
+    re.compile(r" preview$", re.IGNORECASE),
+    re.compile(r"^excerpt from", re.IGNORECASE),
+    re.compile(r"^cast of characters$", re.IGNORECASE),
+    re.compile(r"^timeline$", re.IGNORECASE),
+    re.compile(r"^other titles", re.IGNORECASE),
+    re.compile(r" books by ", re.IGNORECASE),
+)
 
 
 def deromanize(roman):
@@ -125,27 +155,483 @@ def get_page_info(page):
     return parse_footer_nav_text(get_footer_text(page))
 
 
-def go_to_cover(page):
-    """Navigate to the cover/first page via the table of contents."""
-    # Open the TOC sidebar
-    toc_btn = page.query_selector('[data-testid="top_menu_table_of_contents"]')
-    if toc_btn:
-        toc_btn.click()
-        page.wait_for_timeout(1000)
+def ensure_fixed_header_ui(page):
+    """Best-effort: disable top chrome motion to reduce flaky UI interactions."""
+    try:
+        top_chrome = page.locator(TOP_CHROME_SELECTOR).first
+        if top_chrome.count() == 0:
+            return False
+        top_chrome.evaluate("""
+            (el) => {
+                el.style.transition = "none";
+                el.style.transform = "none";
+            }
+        """)
+        return True
+    except Exception:
+        return False
 
-    # Click the Cover entry
-    cover_btn = page.query_selector('button.toc-item-button[aria-label="Cover"]')
-    if cover_btn:
-        cover_btn.click()
-        page.wait_for_timeout(1000)
-        # Close the TOC sidebar
-        close_btn = page.query_selector('button.side-menu-close-button')
-        if close_btn:
-            close_btn.click()
-            page.wait_for_timeout(500)
+
+def reveal_top_chrome(page, button_test_id=None, timeout_ms=5000):
+    """Hover reader header so top controls become visible."""
+    try:
+        header = page.locator(READER_HEADER_SELECTOR).first
+        if header.count() > 0:
+            header.hover(force=True)
+            page.wait_for_timeout(150)
+    except Exception:
+        pass
+
+    if not button_test_id:
         return True
 
+    try:
+        button = page.get_by_test_id(button_test_id).first
+        if button.count() == 0:
+            return False
+        button.wait_for(state="visible", timeout=timeout_ms)
+        return True
+    except Exception:
+        return False
+
+
+def open_toc_menu(page):
+    """Open the TOC sidebar if possible."""
+    if is_toc_panel_open(page):
+        return True
+
+    if not reveal_top_chrome(page, TOC_BUTTON_TEST_ID):
+        return False
+
+    try:
+        toc_btn = page.get_by_test_id(TOC_BUTTON_TEST_ID).first
+        if toc_btn.count() == 0 or not toc_btn.is_visible():
+            return False
+        toc_btn.click()
+        page.wait_for_timeout(600)
+        return True
+    except Exception:
+        return False
+
+
+def is_toc_panel_open(page):
+    """Return True if TOC panel appears open using visible panel markers."""
+    selectors = (
+        SIDE_MENU_CLOSE_SELECTOR,
+        TOC_ITEM_SELECTOR,
+        TOC_BOTTOM_SELECTOR,
+    )
+    for selector in selectors:
+        try:
+            node = page.locator(selector).first
+            if node.count() > 0 and node.is_visible():
+                return True
+        except Exception:
+            continue
     return False
+
+
+def is_toc_panel_closed(page):
+    """Return True when TOC panel does not appear to be open."""
+    return not is_toc_panel_open(page)
+
+
+def close_toc_menu(page):
+    """Close the TOC sidebar if open and verify closure."""
+    if is_toc_panel_closed(page):
+        return True
+
+    for _ in range(2):
+        try:
+            close_btn = page.locator(SIDE_MENU_CLOSE_SELECTOR).first
+            if close_btn.count() > 0 and close_btn.is_visible():
+                close_btn.click()
+                page.wait_for_timeout(250)
+                if is_toc_panel_closed(page):
+                    return True
+        except Exception:
+            pass
+
+        try:
+            if is_toc_panel_open(page) and reveal_top_chrome(page, TOC_BUTTON_TEST_ID):
+                toc_btn = page.get_by_test_id(TOC_BUTTON_TEST_ID).first
+                if toc_btn.count() > 0 and toc_btn.is_visible():
+                    toc_btn.click()
+                    page.wait_for_timeout(250)
+                    if is_toc_panel_closed(page):
+                        return True
+        except Exception:
+            pass
+
+        try:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+            if is_toc_panel_closed(page):
+                return True
+        except Exception:
+            pass
+
+    return is_toc_panel_closed(page)
+
+
+def go_to_cover(page):
+    """Navigate to the cover/first page via the table of contents."""
+    if not open_toc_menu(page):
+        return False
+
+    try:
+        cover_btn = page.locator('button.toc-item-button[aria-label="Cover"]').first
+        if cover_btn.count() == 0:
+            if not close_toc_menu(page):
+                print("Warning: TOC did not fully close after missing Cover entry.")
+            return False
+        cover_btn.click()
+        page.wait_for_timeout(1000)
+        if not close_toc_menu(page):
+            print("Warning: TOC did not fully close after navigating to Cover.")
+        return True
+    except Exception:
+        if not close_toc_menu(page):
+            print("Warning: TOC did not fully close after Cover navigation failure.")
+        return False
+
+
+def go_to_page(page, page_number):
+    """Best-effort navigation to a specific page using the reader menu."""
+    if page_number is None or page_number < 1:
+        return False
+
+    try:
+        reveal_top_chrome(page, NAVIGATION_MENU_TEST_ID)
+        menu_btn = page.get_by_test_id(NAVIGATION_MENU_TEST_ID).first
+        if menu_btn.count() > 0 and menu_btn.is_visible():
+            menu_btn.click()
+        else:
+            fallback_menu = page.get_by_label(READER_MENU_LABEL).first
+            if fallback_menu.count() == 0:
+                return False
+            fallback_menu.click()
+        page.wait_for_timeout(600)
+
+        go_to_page_item = page.locator(
+            GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Page"
+        ).first
+        go_to_page_item.wait_for(state="visible", timeout=5000)
+        go_to_page_item.click()
+        page.wait_for_timeout(250)
+
+        go_to_page_input = page.locator(GO_TO_PAGE_INPUT_SELECTOR).first
+        go_to_page_button = page.locator(GO_TO_PAGE_BUTTON_SELECTOR).first
+        if go_to_page_input.count() == 0 or go_to_page_button.count() == 0:
+            return False
+
+        go_to_page_input.fill(str(page_number))
+        go_to_page_button.click()
+        page.wait_for_timeout(900)
+        return True
+    except Exception:
+        return False
+
+
+def is_end_matter_title(title):
+    """Return True if a TOC title looks like end matter."""
+    if not title:
+        return False
+    return any(pattern.search(title) for pattern in END_MATTER_PATTERNS)
+
+
+def get_page_info_with_retry(page, attempts=8, wait_ms=120):
+    """Retry footer parsing to account for slow nav updates after TOC clicks."""
+    for _ in range(attempts):
+        current, total, current_location, total_location = get_page_info(page)
+        if current is not None and total is not None:
+            return current, total, current_location, total_location
+        if current_location is not None and total_location is not None:
+            return current, total, current_location, total_location
+        page.wait_for_timeout(wait_ms)
+    return None, None, None, None
+
+
+def extract_toc_entries(page, max_scroll_passes=160):
+    """Read TOC entries from a potentially virtualized TOC list."""
+    if not open_toc_menu(page):
+        return []
+
+    entries = []
+    seen_entries = set()
+    toc_items = page.locator(TOC_ITEM_SELECTOR)
+    scrollable = page.locator(TOC_SCROLLABLE_SELECTOR).first
+    toc_bottom = page.locator(TOC_BOTTOM_SELECTOR).first
+    stagnant_scroll_rounds = 0
+
+    try:
+        toc_items.first.wait_for(state="visible", timeout=5000)
+    except Exception:
+        if not close_toc_menu(page):
+            print("Warning: TOC did not fully close after TOC open timeout.")
+        return []
+
+    try:
+        for _ in range(max_scroll_passes):
+            added_this_round = 0
+            current_count = toc_items.count()
+            for index in range(current_count):
+                toc_item = toc_items.nth(index)
+
+                try:
+                    toc_button = toc_item.locator(TOC_BUTTON_SELECTOR).first
+                    if toc_button.count() == 0:
+                        continue
+                    raw_key = toc_button.get_attribute("aria-label")
+                except Exception:
+                    continue
+
+                try:
+                    title_node = toc_item.locator(TOC_CHAPTER_TITLE_SELECTOR).first
+                    raw_title = (
+                        title_node.text_content()
+                        if title_node.count() > 0
+                        else toc_item.text_content()
+                    )
+                except Exception:
+                    raw_title = None
+
+                title = " ".join((raw_title or "").split())
+                if not title:
+                    continue
+
+                entry_key = ((raw_key or title).strip()).lower()
+                if entry_key in seen_entries:
+                    continue
+
+                try:
+                    toc_button.scroll_into_view_if_needed()
+                    if not toc_button.is_visible():
+                        continue
+                    toc_button.click()
+                    page.wait_for_timeout(180)
+                except Exception:
+                    continue
+
+                current, total, current_location, total_location = get_page_info_with_retry(
+                    page
+                )
+
+                seen_entries.add(entry_key)
+                added_this_round += 1
+
+                entries.append(
+                    {
+                        "title": title,
+                        "page": current,
+                        "location": current_location,
+                        "total": (
+                            total
+                            if current is not None and total is not None
+                            else total_location
+                        ),
+                    }
+                )
+
+            reached_bottom = False
+            try:
+                reached_bottom = toc_bottom.count() > 0 and toc_bottom.is_visible()
+            except Exception:
+                reached_bottom = False
+
+            moved = False
+            try:
+                if scrollable.count() > 0:
+                    result = scrollable.evaluate("""
+                        (el) => {
+                            const previous = el.scrollTop;
+                            const delta = Math.max(240, Math.floor(el.clientHeight * 0.8));
+                            el.scrollBy(0, delta);
+                            return { previous, next: el.scrollTop };
+                        }
+                    """)
+                    moved = result.get("next") != result.get("previous")
+                elif current_count > 0:
+                    toc_items.nth(current_count - 1).scroll_into_view_if_needed()
+                    moved = True
+            except Exception:
+                moved = False
+
+            if reached_bottom and added_this_round == 0:
+                break
+            if not moved:
+                stagnant_scroll_rounds += 1
+            else:
+                stagnant_scroll_rounds = 0
+            if stagnant_scroll_rounds >= 3:
+                break
+
+            page.wait_for_timeout(180)
+    finally:
+        if not close_toc_menu(page):
+            print("Warning: TOC did not fully close after TOC scan.")
+
+    return entries
+
+
+def classify_toc_entries(entries):
+    """Classify entries as content/end matter based on title + position."""
+    first_end_matter_index = None
+    for idx, entry in enumerate(entries):
+        title = entry.get("title")
+        total = entry.get("total")
+        marker = entry.get("page")
+        if marker is None:
+            marker = entry.get("location")
+
+        if not title or not isinstance(total, int) or total <= 0:
+            continue
+        if marker is None:
+            continue
+        if not is_end_matter_title(title):
+            continue
+        if marker / total < 0.9:
+            continue
+
+        first_end_matter_index = idx
+        break
+
+    classified = []
+    for idx, entry in enumerate(entries):
+        kind = "content"
+        if first_end_matter_index is not None and idx >= first_end_matter_index:
+            kind = "end_matter"
+        classified.append({**entry, "kind": kind})
+
+    return classified
+
+
+def build_toc_payload(target_asin, entries, include_end_matter):
+    """Create a normalized TOC payload and optional content boundary."""
+    classified = classify_toc_entries(entries)
+    first_end_matter = next(
+        (item for item in classified if item.get("kind") == "end_matter"),
+        None,
+    )
+
+    content_max_page = None
+    content_max_location = None
+    if not include_end_matter and first_end_matter:
+        if first_end_matter.get("page") is not None:
+            tentative = first_end_matter["page"] - 1
+            if tentative >= 1:
+                content_max_page = tentative
+        elif first_end_matter.get("location") is not None:
+            tentative = first_end_matter["location"] - 1
+            if tentative >= 1:
+                content_max_location = tentative
+
+    output_entries = []
+    for idx, entry in enumerate(classified):
+        output_entries.append(
+            {
+                "index": idx,
+                "title": entry.get("title"),
+                "page": entry.get("page"),
+                "location": entry.get("location"),
+                "total": entry.get("total"),
+                "kind": entry.get("kind"),
+            }
+        )
+
+    summary = {
+        "entry_count": len(output_entries),
+        "content_count": sum(1 for item in output_entries if item["kind"] == "content"),
+        "end_matter_count": sum(
+            1 for item in output_entries if item["kind"] == "end_matter"
+        ),
+        "first_end_matter_title": (
+            first_end_matter.get("title") if first_end_matter else None
+        ),
+        "first_end_matter_page": (
+            first_end_matter.get("page") if first_end_matter else None
+        ),
+        "first_end_matter_location": (
+            first_end_matter.get("location") if first_end_matter else None
+        ),
+        "content_max_page": content_max_page,
+        "content_max_location": content_max_location,
+        "include_end_matter": include_end_matter,
+    }
+
+    return {
+        "asin": target_asin,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "entries": output_entries,
+        "summary": summary,
+    }
+
+
+def save_toc(toc_path, toc_payload):
+    """Write TOC JSON to disk."""
+    toc_path.write_text(
+        json.dumps(toc_payload, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Saved TOC: {toc_path}")
+
+
+def _coerce_positive_int(value):
+    """Parse an integer-like value and require positive integer output."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def load_toc_entries_from_file(toc_path):
+    """Load normalized TOC entries from a previous toc.json file."""
+    try:
+        payload = json.loads(toc_path.read_text(encoding="utf-8"))
+    except Exception:
+        print("Warning: existing toc.json could not be parsed; rebuilding TOC.")
+        return []
+
+    if not isinstance(payload, dict):
+        print("Warning: existing toc.json has unexpected shape; rebuilding TOC.")
+        return []
+
+    raw_entries = payload.get("entries")
+    if not isinstance(raw_entries, list):
+        print("Warning: existing toc.json has no entries list; rebuilding TOC.")
+        return []
+
+    normalized_entries = []
+    for item in raw_entries:
+        if not isinstance(item, dict):
+            continue
+
+        raw_title = item.get("title")
+        if not isinstance(raw_title, str):
+            continue
+        title = " ".join(raw_title.split())
+        if not title:
+            continue
+
+        page = _coerce_positive_int(item.get("page"))
+        location = _coerce_positive_int(item.get("location"))
+        total = _coerce_positive_int(item.get("total"))
+        if page is None and location is None:
+            continue
+
+        normalized_entries.append(
+            {
+                "title": title,
+                "page": page,
+                "location": location,
+                "total": total if total is not None else 0,
+            }
+        )
+
+    if not normalized_entries:
+        print("Warning: existing toc.json had no usable entries; rebuilding TOC.")
+    return normalized_entries
 
 
 def on_page_turn(page, current, total, current_location=None, total_location=None):
@@ -467,7 +953,7 @@ def save_page_screenshot(
 def main():
     parser = argparse.ArgumentParser(description="Kindle hands-free page turner")
     parser.add_argument(
-        "--seconds", type=int, default=60, help="Seconds to wait per page (default: 60)"
+        "--seconds", type=int, default=1, help="Seconds to wait per page (default: 1)"
     )
     parser.add_argument(
         "--asin", type=str, default="B00FO74WXA", help="Book ASIN to open"
@@ -483,6 +969,16 @@ def main():
         action="store_true",
         help="Disable network metadata capture and metadata.json output",
     )
+    parser.add_argument(
+        "--include-end-matter",
+        action="store_true",
+        help="Capture end matter pages/locations instead of trimming by TOC boundary",
+    )
+    parser.add_argument(
+        "--refresh-toc",
+        action="store_true",
+        help="Ignore existing toc.json and rebuild TOC from browser navigation",
+    )
     args = parser.parse_args()
 
     user_data_dir = Path.home() / ".kindle-reader-profile"
@@ -490,6 +986,7 @@ def main():
     screenshots_dir = book_dir / "pages"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
     metadata_path = book_dir / "metadata.json"
+    toc_path = book_dir / "toc.json"
 
     url = f"https://read.amazon.com/?asin={args.asin}"
 
@@ -558,10 +1055,91 @@ def main():
         page.wait_for_selector("#kr-chevron-right", timeout=30_000)
         if dismiss_possible_alert(page):
             print("Info: dismissed blocking alert.")
+        if ensure_fixed_header_ui(page):
+            print("Info: stabilized top chrome UI motion.")
         if apply_reader_settings(page):
             print("Info: applied reader settings (Single Column + Amazon Ember).")
         else:
             print("Warning: could not fully apply reader settings; continuing.")
+
+        initial_page, _initial_total, initial_location, _initial_total_location = (
+            get_page_info(page)
+        )
+        toc_entries = []
+        toc_source = "browser"
+        if toc_path.exists() and not args.refresh_toc:
+            toc_entries = load_toc_entries_from_file(toc_path)
+            if toc_entries:
+                toc_source = "cache"
+                print(f"Loaded TOC from cache: {toc_path} ({len(toc_entries)} entries).")
+
+        if not toc_entries:
+            try:
+                toc_entries = extract_toc_entries(page)
+            except Exception:
+                print("Warning: TOC extraction failed; continuing without TOC boundaries.")
+                toc_entries = []
+            toc_source = "browser"
+
+        toc_payload = build_toc_payload(args.asin, toc_entries, args.include_end_matter)
+        if toc_source == "browser":
+            if toc_entries:
+                save_toc(toc_path, toc_payload)
+            elif toc_path.exists():
+                print(
+                    "Warning: browser TOC extraction returned no entries; "
+                    "keeping existing toc.json."
+                )
+            else:
+                print("Warning: browser TOC extraction returned no entries.")
+
+        toc_summary = toc_payload["summary"]
+        content_max_page = toc_summary["content_max_page"]
+        content_max_location = toc_summary["content_max_location"]
+
+        if toc_source == "cache":
+            print(f"TOC entries loaded: {toc_summary['entry_count']}")
+        else:
+            print(f"TOC entries captured: {toc_summary['entry_count']}")
+        if toc_summary["first_end_matter_title"]:
+            marker = toc_summary["first_end_matter_title"]
+            if toc_summary["first_end_matter_page"] is not None:
+                print(
+                    "TOC end-matter marker: "
+                    f"{marker} (page {toc_summary['first_end_matter_page']})"
+                )
+            elif toc_summary["first_end_matter_location"] is not None:
+                print(
+                    "TOC end-matter marker: "
+                    f"{marker} (location {toc_summary['first_end_matter_location']})"
+                )
+        else:
+            print("TOC end-matter marker: none detected")
+
+        if args.include_end_matter:
+            print("TOC boundary trimming disabled (--include-end-matter).")
+        elif content_max_page is not None:
+            print(f"TOC content boundary: page <= {content_max_page}")
+        elif content_max_location is not None:
+            print(f"TOC content boundary: location <= {content_max_location}")
+        else:
+            print("TOC content boundary: unavailable (using reader end only).")
+
+        if args.no_restart and toc_source == "browser":
+            if initial_page is not None:
+                if go_to_page(page, initial_page):
+                    print(f"Info: restored position to page {initial_page} after TOC scan.")
+                else:
+                    print(
+                        "Warning: could not restore initial page after TOC scan; "
+                        "continuing from current position."
+                    )
+            elif initial_location is not None:
+                print(
+                    "Warning: current position uses location values; "
+                    "page-based restore after TOC scan is unavailable."
+                )
+
         if not args.no_metadata:
             page.wait_for_timeout(1000)
             metadata = build_flattened_metadata(
@@ -618,6 +1196,23 @@ def main():
                 has_location_bounds = (
                     current_location is not None and total_location is not None
                 )
+                if has_page_bounds and content_max_page is not None:
+                    if current >= content_max_page:
+                        print(
+                            f"Reached TOC content boundary (page {content_max_page}). Done!"
+                        )
+                        break
+                if (
+                    not has_page_bounds
+                    and has_location_bounds
+                    and content_max_location is not None
+                ):
+                    if current_location >= content_max_location:
+                        print(
+                            "Reached TOC content boundary "
+                            f"(location {content_max_location}). Done!"
+                        )
+                        break
                 if has_page_bounds and current >= total:
                     print(f"Reached the last page ({current} of {total}). Done!")
                     break
