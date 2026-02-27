@@ -1,6 +1,6 @@
 # Kindling
 
-Hands-free Kindle page turner. Opens a book in the Kindle web reader and auto-advances pages at a configurable interval.
+Tools to get more out of your digital book collection.
 
 ## Setup
 
@@ -14,7 +14,7 @@ playwright install chromium
 ## Usage
 
 ```bash
-python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position]
+python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position]
 ```
 
 | Flag | Default | Description |
@@ -33,19 +33,19 @@ python kindle-reader.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-p
 
 ```bash
 # Quick test — flip 5 pages every 3 seconds (Shadow of the Hegemon)
-python kindle-reader.py --asin B00FO74WXA --seconds 3 --pages 5
+python scripts/extract.py --asin B00FO74WXA --seconds 3 --pages 5
 
 # Read at a relaxed pace, unlimited pages
-python kindle-reader.py --asin B00FO74WXA --seconds 90
+python scripts/extract.py --asin B00FO74WXA --seconds 90
 
 # Resume from current page instead of restarting from the cover
-python kindle-reader.py --asin B00FO74WXA --no-restart
+python scripts/extract.py --asin B00FO74WXA --no-restart
 
 # Jump directly to a specific page before capture starts
-python kindle-reader.py --asin B00FO74WXA --start-page 238 --pages 5
+python scripts/extract.py --asin B00FO74WXA --start-page 238 --pages 5
 
 # Keep end position after run (disable default restore-to-start behavior)
-python kindle-reader.py --asin B00FO74WXA --pages 10 --no-restore-position
+python scripts/extract.py --asin B00FO74WXA --pages 10 --no-restore-position
 
 ```
 
