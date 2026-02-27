@@ -32,39 +32,27 @@ python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start
 ### Examples
 
 ```bash
-# Quick test — flip 5 pages every 3 seconds (Shadow of the Hegemon)
+# Quick test — flip 5 pages every 3 seconds
 python scripts/extract.py --asin B00FO74WXA --seconds 3 --pages 5
-
-# Read at a relaxed pace, unlimited pages
-python scripts/extract.py --asin B00FO74WXA --seconds 90
 
 # Resume from current page instead of restarting from the cover
 python scripts/extract.py --asin B00FO74WXA --no-restart
 
 # Jump directly to a specific page before capture starts
 python scripts/extract.py --asin B00FO74WXA --start-page 238 --pages 5
-
-# Keep end position after run (disable default restore-to-start behavior)
-python scripts/extract.py --asin B00FO74WXA --pages 10 --no-restore-position
-
 ```
 
-On first run, you'll need to log into Amazon in the browser window. Your session is saved to `~/.kindle-reader-profile` so subsequent runs won't require login.
+## How it works
 
-By default, screenshots are saved to `./books/<asin>/pages` (for example `./books/B00FO74WXA/pages`) and created automatically if needed.
-Screenshots target the main Kindle content element for cleaner captures, with an automatic viewport fallback if that element is unavailable.
-The script also applies reader settings (Single Column + Amazon Ember) for more consistent captures when possible.
-The script also applies a best-effort top-header motion fix to reduce flaky TOC/settings interactions.
-If Kindle exposes location instead of page numbers, screenshot filenames use `loc-<current>-of-<total>`.
-The script also saves intercepted Kindle metadata to `./books/<asin>/metadata.json`.
-The script saves parsed table-of-contents data to `./books/<asin>/toc.json`.
-The script saves a machine-readable page capture manifest to `./books/<asin>/pages.json`.
-If `toc.json` already exists, the script reuses it and skips TOC browser traversal by default.
-By default, if a likely end-matter boundary is detected from TOC entries, capture stops at the last content page/location before that boundary.
-By default, the script returns to your starting page when the run ends (including Ctrl+C interruptions).
-Use `--include-end-matter` to capture through the full book.
-Use `--refresh-toc` to force rebuilding TOC from the browser.
-Use `--start-page` to begin capture from a specific page.
-Use `--no-restore-position` to keep your current end position instead.
+- Opens your book in Kindle Cloud Reader via Playwright
+- Screenshots each page to `./books/<asin>/pages/`
+- Captures metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
+- Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)
+- Restores your reading position when done
 
-Press `Ctrl+C` to stop at any time.
+## Notes
+
+- First run requires Amazon login; session is persisted to `~/.kindle-reader-profile`
+- Applies Single Column + Amazon Ember font for consistent captures
+- Falls back to location-based filenames when page numbers aren't available
+- Press `Ctrl+C` to stop at any time
