@@ -1,17 +1,13 @@
 """
-Kindle hands-free page turner.
-
-Opens a Kindle book in the browser and auto-advances pages
-at a configurable interval so you can read hands-free.
+Opens a book in Kindle Cloud Reader via Playwright, screenshots each page,
+and captures metadata and TOC. Auto-stops at end-matter boundaries and
+restores your reading position when done.
 
 Usage:
     python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0]
                               [--start-page 1] [--no-restart] [--no-metadata]
                               [--include-end-matter] [--refresh-toc]
                               [--no-restore-position]
-
-On first run, you'll need to log into Amazon manually.
-Your session is saved so subsequent runs won't require login.
 """
 
 import argparse
