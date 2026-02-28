@@ -87,7 +87,7 @@ OPENAI_API_KEY=your_key_here
 Run transcription:
 
 ```bash
-python scripts/transcribe.py --asin B00FO74WXA [--model gpt-5] [--qa-model gpt-5] [--start-at 0] [--max-pages 0] [--force] [--dry-run] [--max-retries 3]
+python scripts/transcribe.py --asin B00FO74WXA [--model gpt-5] [--qa-model gpt-5] [--start-at 0] [--max-pages 0] [--force] [--dry-run] [--max-retries 3] [--max-output-tokens 4000]
 ```
 
 | Flag | Default | Description |
