@@ -47,13 +47,6 @@ python scripts/extract.py --asin B00FO74WXA --start-page 238 --pages 5
 python scripts/extract.py --asin B00FO74WXA --overwrite-existing
 ```
 
-### Migration (one-time)
-
-```bash
-# Convert existing sequence-based captures to nav-keyed canonical files
-python scripts/migrate_pages_to_nav_keys.py [--asin B00FO74WXA]
-```
-
 ## Transcribe pages
 
 Set your API key (the scripts auto-load `.env` via `python-dotenv`):
