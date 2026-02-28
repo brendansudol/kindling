@@ -186,24 +186,19 @@ def parse_int(value: Any) -> int | None:
 
 def parse_capture_metadata_from_filename(name: str) -> dict[str, Any]:
     metadata: dict[str, Any] = {
-        "sequence": None,
         "page": None,
         "total": None,
         "location": None,
         "total_location": None,
     }
 
-    sequence_match = re.search(r"capture-(\d+)-", name)
-    if sequence_match:
-        metadata["sequence"] = parse_int(sequence_match.group(1))
-
-    page_match = re.search(r"-page-(\d+)-of-(\d+)", name)
+    page_match = re.search(r"^page-(\d+)-of-(\d+)\.png$", name)
     if page_match:
         metadata["page"] = parse_int(page_match.group(1))
         metadata["total"] = parse_int(page_match.group(2))
         return metadata
 
-    location_match = re.search(r"-loc-(\d+)-of-(\d+)", name)
+    location_match = re.search(r"^loc-(\d+)-of-(\d+)\.png$", name)
     if location_match:
         metadata["location"] = parse_int(location_match.group(1))
         metadata["total_location"] = parse_int(location_match.group(2))
@@ -212,23 +207,20 @@ def parse_capture_metadata_from_filename(name: str) -> dict[str, Any]:
 
 
 def format_capture_label(capture: dict[str, Any]) -> str:
-    sequence = capture.get("sequence")
     page = capture.get("page")
     total = capture.get("total")
     location = capture.get("location")
     total_location = capture.get("total_location")
 
-    prefix = f"Capture {sequence:04d}" if isinstance(sequence, int) else "Capture"
-
     if isinstance(page, int) and isinstance(total, int):
-        return f"{prefix} - Page {page} of {total}"
+        return f"Page {page} of {total}"
     if isinstance(location, int) and isinstance(total_location, int):
-        return f"{prefix} - Location {location} of {total_location}"
+        return f"Location {location} of {total_location}"
     if isinstance(page, int):
-        return f"{prefix} - Page {page}"
+        return f"Page {page}"
     if isinstance(location, int):
-        return f"{prefix} - Location {location}"
-    return prefix
+        return f"Location {location}"
+    return "Capture"
 
 
 def to_plain_object(value: Any) -> Any:
@@ -455,7 +447,6 @@ def load_captures(book_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]
                 captures.append(
                     {
                         "index": parsed_index if parsed_index is not None else idx,
-                        "sequence": parse_int(item.get("sequence")),
                         "file": image_path.name,
                         "path": normalized_rel,
                         "source_path": image_path,
@@ -479,7 +470,6 @@ def load_captures(book_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]
         captures.append(
             {
                 "index": idx,
-                "sequence": metadata.get("sequence"),
                 "file": image_path.name,
                 "path": f"pages/{image_path.name}",
                 "source_path": image_path.resolve(),
@@ -834,7 +824,6 @@ def main() -> int:
             "captures": [
                 {
                     "index": c.get("index"),
-                    "sequence": c.get("sequence"),
                     "path": c.get("path"),
                     "page": c.get("page"),
                     "total": c.get("total"),
@@ -930,7 +919,6 @@ def main() -> int:
         capture_records.append(
             {
                 "index": capture.get("index"),
-                "sequence": capture.get("sequence"),
                 "file": capture.get("file"),
                 "path": capture.get("path"),
                 "page": capture.get("page"),

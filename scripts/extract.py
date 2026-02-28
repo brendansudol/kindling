@@ -7,7 +7,7 @@ Usage:
     python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0]
                               [--start-page 1] [--no-restart] [--no-metadata]
                               [--include-end-matter] [--refresh-toc]
-                              [--no-restore-position]
+                              [--no-restore-position] [--overwrite-existing]
 """
 
 import argparse
@@ -918,8 +918,85 @@ def save_metadata(metadata_path, metadata):
     print(f"Saved metadata: {metadata_path}")
 
 
-def build_pages_manifest_payload(target_asin, captured_at, entries):
-    """Build a normalized pages manifest payload for captured screenshots."""
+def parse_canonical_capture_filename(file_name):
+    """Parse canonical nav-keyed filename into page/location metadata."""
+    page_match = re.match(r"^page-(\d+)-of-(\d+)\.png$", file_name)
+    if page_match:
+        return {
+            "page": int(page_match.group(1)),
+            "total": int(page_match.group(2)),
+            "location": None,
+            "total_location": None,
+        }
+
+    location_match = re.match(r"^loc-(\d+)-of-(\d+)\.png$", file_name)
+    if location_match:
+        return {
+            "page": None,
+            "total": None,
+            "location": int(location_match.group(1)),
+            "total_location": int(location_match.group(2)),
+        }
+
+    return None
+
+
+def canonical_capture_sort_key(entry):
+    """Sort canonical entries deterministically (location first, then page)."""
+    if entry.get("location") is not None:
+        return (
+            0,
+            entry.get("location") or 0,
+            entry.get("total_location") or 0,
+            entry.get("file") or "",
+        )
+    if entry.get("page") is not None:
+        return (
+            1,
+            entry.get("page") or 0,
+            entry.get("total") or 0,
+            entry.get("file") or "",
+        )
+    return (2, 0, 0, entry.get("file") or "")
+
+
+def scan_canonical_pages_manifest_entries(screenshots_dir):
+    """Scan pages dir and return canonical nav-key entries for pages.json."""
+    entries = []
+    ignored_noncanonical_count = 0
+
+    for screenshot_path in screenshots_dir.glob("*.png"):
+        parsed = parse_canonical_capture_filename(screenshot_path.name)
+        if parsed is None:
+            ignored_noncanonical_count += 1
+            continue
+
+        entries.append(
+            {
+                "file": screenshot_path.name,
+                "path": f"pages/{screenshot_path.name}",
+                "page": parsed["page"],
+                "total": parsed["total"],
+                "location": parsed["location"],
+                "total_location": parsed["total_location"],
+            }
+        )
+
+    entries.sort(key=canonical_capture_sort_key)
+    for idx, item in enumerate(entries):
+        item["index"] = idx
+
+    return entries, ignored_noncanonical_count
+
+
+def build_pages_manifest_payload(
+    target_asin,
+    captured_at,
+    entries,
+    capture_stats=None,
+    ignored_noncanonical_count=0,
+):
+    """Build a canonical pages manifest snapshot."""
     page_nav_count = 0
     location_nav_count = 0
     unknown_nav_count = 0
@@ -936,16 +1013,21 @@ def build_pages_manifest_payload(target_asin, captured_at, entries):
         else:
             unknown_nav_count += 1
 
+    summary = {
+        "capture_count": len(entries),
+        "page_nav_count": page_nav_count,
+        "location_nav_count": location_nav_count,
+        "unknown_nav_count": unknown_nav_count,
+        "ignored_noncanonical_count": ignored_noncanonical_count,
+    }
+    if isinstance(capture_stats, dict):
+        summary.update(capture_stats)
+
     return {
         "asin": target_asin,
         "captured_at": captured_at,
         "pages": entries,
-        "summary": {
-            "capture_count": len(entries),
-            "page_nav_count": page_nav_count,
-            "location_nav_count": location_nav_count,
-            "unknown_nav_count": unknown_nav_count,
-        },
+        "summary": summary,
     }
 
 
@@ -959,34 +1041,21 @@ def save_pages_manifest(manifest_path, payload):
     temp_path.replace(manifest_path)
 
 
-def append_pages_manifest_entry(
-    entries,
-    screenshot_path,
-    sequence_number,
-    book_dir,
+def build_canonical_capture_filename(
     current=None,
     total=None,
     current_location=None,
     total_location=None,
 ):
-    """Append one screenshot record to in-memory pages manifest entries."""
-    try:
-        relative_path = screenshot_path.relative_to(book_dir).as_posix()
-    except Exception:
-        relative_path = str(screenshot_path)
+    """Return canonical nav-key filename or None when nav values are unknown."""
+    if current is not None and total is not None:
+        return f"page-{current:04d}-of-{total:04d}.png"
 
-    entries.append(
-        {
-            "index": len(entries),
-            "sequence": sequence_number,
-            "file": screenshot_path.name,
-            "path": relative_path,
-            "page": current,
-            "total": total,
-            "location": current_location,
-            "total_location": total_location,
-        }
-    )
+    if current_location is not None and total_location is not None:
+        width = max(4, len(str(total_location)))
+        return f"loc-{current_location:0{width}d}-of-{total_location:0{width}d}.png"
+
+    return None
 
 
 def iter_capture_locators(page):
@@ -1033,37 +1102,45 @@ def get_content_signature(page):
 def save_page_screenshot(
     page,
     screenshots_dir,
-    sequence_number,
+    overwrite_existing=False,
     current=None,
     total=None,
     current_location=None,
     total_location=None,
 ):
-    """Save the current content area to disk; fallback to viewport if needed."""
-    if current is not None and total is not None:
-        filename = f"capture-{sequence_number:04d}-page-{current:04d}-of-{total:04d}.png"
-    elif current_location is not None and total_location is not None:
-        width = max(4, len(str(total_location)))
-        filename = (
-            f"capture-{sequence_number:04d}-loc-{current_location:0{width}d}"
-            f"-of-{total_location:0{width}d}.png"
-        )
-    elif current is not None:
-        filename = f"capture-{sequence_number:04d}-page-{current:04d}.png"
-    elif current_location is not None:
-        width = max(4, len(str(current_location)))
-        filename = f"capture-{sequence_number:04d}-loc-{current_location:0{width}d}.png"
-    else:
-        filename = f"capture-{sequence_number:04d}-page-unknown.png"
+    """Save current content to canonical filename; skip/overwrite existing as configured."""
+    filename = build_canonical_capture_filename(
+        current=current,
+        total=total,
+        current_location=current_location,
+        total_location=total_location,
+    )
+    if not filename:
+        print("Info: skipping capture because page/location is unknown.")
+        return "skipped_unknown", None
 
     screenshot_path = screenshots_dir / filename
+    already_exists = screenshot_path.exists()
+    if already_exists and not overwrite_existing:
+        print(f"Info: skipping existing screenshot: {screenshot_path}")
+        return "skipped_existing", screenshot_path
+
+    capture_path = screenshot_path
+    should_overwrite = already_exists and overwrite_existing
+    if should_overwrite:
+        capture_path = screenshot_path.with_name(f"{screenshot_path.name}.tmp")
+
     had_content_candidate = False
     for _selector, locator in iter_capture_locators(page):
         had_content_candidate = True
         try:
-            locator.screenshot(path=str(screenshot_path))
+            locator.screenshot(path=str(capture_path))
+            if should_overwrite:
+                capture_path.replace(screenshot_path)
+                print(f"Overwrote screenshot: {screenshot_path}")
+                return "overwritten", screenshot_path
             print(f"Saved screenshot: {screenshot_path}")
-            return screenshot_path
+            return "new", screenshot_path
         except Exception:
             continue
 
@@ -1071,10 +1148,21 @@ def save_page_screenshot(
         print("Warning: content element capture failed; using viewport screenshot.")
     else:
         print("Warning: content element not found; using viewport screenshot.")
-    page.screenshot(path=str(screenshot_path))
+    page.screenshot(path=str(capture_path))
 
+    if should_overwrite:
+        capture_path.replace(screenshot_path)
+        print(f"Overwrote screenshot: {screenshot_path}")
+        return "overwritten", screenshot_path
     print(f"Saved screenshot: {screenshot_path}")
-    return screenshot_path
+    return "new", screenshot_path
+
+
+def update_capture_stats(capture_stats, capture_status):
+    """Increment capture counters for manifest summary/debug output."""
+    status_key = f"{capture_status}_count"
+    if status_key in capture_stats:
+        capture_stats[status_key] += 1
 
 
 def main():
@@ -1118,6 +1206,11 @@ def main():
         "--no-restore-position",
         action="store_true",
         help="Do not return to the starting page when run finishes",
+    )
+    parser.add_argument(
+        "--overwrite-existing",
+        action="store_true",
+        help="Overwrite existing canonical screenshots instead of skipping them",
     )
     args = parser.parse_args()
     if args.start_page is not None and args.start_page < 1:
@@ -1326,18 +1419,36 @@ def main():
         elif current_location is not None and total_location is not None:
             print(f"On location {current_location} of {total_location}.")
         print(f"Saving page screenshots to {screenshots_dir}")
+        if args.overwrite_existing:
+            print("Overwrite mode enabled: existing screenshots will be replaced.")
+        else:
+            print(
+                "Idempotent mode enabled: existing screenshots are skipped "
+                "(use --overwrite-existing to replace)."
+            )
         print(f"Auto-advancing every {args.seconds}s. Press Ctrl+C to stop.\n")
 
         pages_turned = 0
-        screenshots_taken = 0
-        pages_manifest_entries = []
         pages_manifest_captured_at = datetime.now(timezone.utc).isoformat()
         pages_manifest_warning_printed = False
+        capture_stats = {
+            "new_count": 0,
+            "overwritten_count": 0,
+            "skipped_existing_count": 0,
+            "skipped_unknown_count": 0,
+        }
 
         def save_pages_manifest_best_effort():
             nonlocal pages_manifest_warning_printed
+            entries, ignored_noncanonical_count = scan_canonical_pages_manifest_entries(
+                screenshots_dir
+            )
             payload = build_pages_manifest_payload(
-                args.asin, pages_manifest_captured_at, pages_manifest_entries
+                args.asin,
+                pages_manifest_captured_at,
+                entries,
+                capture_stats=capture_stats,
+                ignored_noncanonical_count=ignored_noncanonical_count,
             )
             try:
                 save_pages_manifest(pages_manifest_path, payload)
@@ -1347,27 +1458,16 @@ def main():
                     pages_manifest_warning_printed = True
 
         # Capture the page currently on screen before any turns.
-        sequence_number = screenshots_taken + 1
-        screenshot_path = save_page_screenshot(
+        capture_status, _screenshot_path = save_page_screenshot(
             page,
             screenshots_dir,
-            sequence_number,
-            current,
-            total,
-            current_location,
-            total_location,
+            overwrite_existing=args.overwrite_existing,
+            current=current,
+            total=total,
+            current_location=current_location,
+            total_location=total_location,
         )
-        screenshots_taken += 1
-        append_pages_manifest_entry(
-            pages_manifest_entries,
-            screenshot_path,
-            sequence_number,
-            book_dir,
-            current,
-            total,
-            current_location,
-            total_location,
-        )
+        update_capture_stats(capture_stats, capture_status)
         save_pages_manifest_best_effort()
 
         try:
@@ -1454,33 +1554,29 @@ def main():
                             "Warning: page content did not confirm change within 8s; continuing."
                         )
                 on_page_turn(page, current, total, current_location, total_location)
-                sequence_number = screenshots_taken + 1
-                screenshot_path = save_page_screenshot(
+                capture_status, _screenshot_path = save_page_screenshot(
                     page,
                     screenshots_dir,
-                    sequence_number,
-                    current,
-                    total,
-                    current_location,
-                    total_location,
+                    overwrite_existing=args.overwrite_existing,
+                    current=current,
+                    total=total,
+                    current_location=current_location,
+                    total_location=total_location,
                 )
-                screenshots_taken += 1
-                append_pages_manifest_entry(
-                    pages_manifest_entries,
-                    screenshot_path,
-                    sequence_number,
-                    book_dir,
-                    current,
-                    total,
-                    current_location,
-                    total_location,
-                )
+                update_capture_stats(capture_stats, capture_status)
                 save_pages_manifest_best_effort()
 
         except KeyboardInterrupt:
             print(f"\nStopped after {pages_turned} pages.")
         finally:
             save_pages_manifest_best_effort()
+            print(
+                "Capture summary: "
+                f"new={capture_stats['new_count']} "
+                f"overwritten={capture_stats['overwritten_count']} "
+                f"skipped_existing={capture_stats['skipped_existing_count']} "
+                f"skipped_unknown={capture_stats['skipped_unknown_count']}"
+            )
             if args.no_restore_position:
                 print("Info: start position restore disabled (--no-restore-position).")
             else:

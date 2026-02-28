@@ -15,7 +15,7 @@ cp .env.example .env
 ## Extract pages
 
 ```bash
-python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position]
+python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position] [--overwrite-existing]
 ```
 
 | Flag | Default | Description |
@@ -29,6 +29,7 @@ python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start
 | `--include-end-matter` | off | Disable TOC-based trimming and include end matter |
 | `--refresh-toc` | off | Ignore existing `toc.json` and rebuild TOC from browser |
 | `--no-restore-position` | off | Keep current reader position at exit instead of restoring start position |
+| `--overwrite-existing` | off | Replace existing nav-keyed screenshot files (default is skip existing files) |
 
 ### Examples
 
@@ -41,6 +42,16 @@ python scripts/extract.py --asin B00FO74WXA --no-restart
 
 # Jump directly to a specific page before capture starts
 python scripts/extract.py --asin B00FO74WXA --start-page 238 --pages 5
+
+# Re-capture and overwrite already saved pages
+python scripts/extract.py --asin B00FO74WXA --overwrite-existing
+```
+
+### Migration (one-time)
+
+```bash
+# Convert existing sequence-based captures to nav-keyed canonical files
+python scripts/migrate_pages_to_nav_keys.py [--asin B00FO74WXA]
 ```
 
 ## Transcribe pages
@@ -89,7 +100,7 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 ## How it works
 
 - Opens your book in Kindle Cloud Reader via Playwright
-- Screenshots each page to `./books/<asin>/pages/`
+- Saves screenshots to `./books/<asin>/pages/` with canonical nav-keyed names (`page-0238-of-0452.png`, `loc-0002-of-6446.png`)
 - Captures metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
 - Transcribes screenshots with OpenAI (2-pass OCR + QA) into `./books/<asin>/transcripts/`
 - Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)
@@ -108,6 +119,7 @@ The transcription script writes:
 
 - First run requires Amazon login; session is persisted to `~/.kindle-reader-profile`
 - Applies Single Column + Amazon Ember font for consistent captures
-- Falls back to location-based filenames when page numbers aren't available
+- Capture is idempotent by default: existing nav-keyed files are skipped unless `--overwrite-existing` is set
+- Pages with unknown footer navigation are skipped (no unstable `unknown` files are written)
 - Transcription deduplicates repeated images by exact SHA256 hash and resumes from saved canonical results
 - Press `Ctrl+C` to stop at any time
