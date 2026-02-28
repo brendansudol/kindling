@@ -8,8 +8,29 @@ Tools to get more out of your digital book collection.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# Optional: lint/format tooling
+pip install -r requirements-dev.txt
 playwright install chromium
 cp .env.example .env
+```
+
+## Code quality
+
+```bash
+# Lint
+make lint
+
+# Auto-fix lint issues (including import sorting)
+make lint-fix
+
+# Check formatting
+make format-check
+
+# Apply formatting
+make format
+
+# Lint + format check
+make check
 ```
 
 ## Extract pages

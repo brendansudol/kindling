@@ -21,7 +21,7 @@ import os
 import random
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -90,7 +90,7 @@ Your job:
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def sanitize_slug(value: str) -> str:
@@ -114,7 +114,7 @@ def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
 def clamp_confidence(value: Any) -> float:
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
     if parsed < 0:
         return 0.0
@@ -179,7 +179,7 @@ def encode_image_data_url(path: Path) -> str:
 def parse_int(value: Any) -> int | None:
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed
 
@@ -647,7 +647,9 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Transcribe captured Kindle pages via OpenAI OCR")
     parser.add_argument("--asin", required=True, help="Book ASIN (maps to books/<asin>)")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OCR model (default: {DEFAULT_MODEL})")
+    parser.add_argument(
+        "--model", default=DEFAULT_MODEL, help=f"OCR model (default: {DEFAULT_MODEL})"
+    )
     parser.add_argument(
         "--qa-model",
         default=DEFAULT_QA_MODEL,
@@ -720,12 +722,12 @@ def main() -> int:
         return 1
 
     start_index = args.start_at
-    end_index = len(captures) if args.max_pages == 0 else min(len(captures), start_index + args.max_pages)
+    end_index = (
+        len(captures) if args.max_pages == 0 else min(len(captures), start_index + args.max_pages)
+    )
 
     if start_index >= len(captures):
-        print(
-            f"Error: --start-at {start_index} is out of range for {len(captures)} captures."
-        )
+        print(f"Error: --start-at {start_index} is out of range for {len(captures)} captures.")
         return 1
 
     selected_captures = captures[start_index:end_index]
@@ -992,10 +994,7 @@ def main() -> int:
     }
     write_json(manifest_path, manifest_payload)
 
-    print(
-        "Wrote transcript outputs: "
-        f"{book_markdown_path}, {captures_jsonl_path}, {manifest_path}"
-    )
+    print(f"Wrote transcript outputs: {book_markdown_path}, {captures_jsonl_path}, {manifest_path}")
 
     if successful_unique == 0:
         print("Error: no pages were transcribed successfully.")
@@ -1003,8 +1002,7 @@ def main() -> int:
 
     if failure_ratio > 0.10:
         print(
-            f"Warning: failure ratio is {failure_ratio:.1%}, which exceeds 10%. "
-            "Exiting non-zero."
+            f"Warning: failure ratio is {failure_ratio:.1%}, which exceeds 10%. Exiting non-zero."
         )
         return 1
 

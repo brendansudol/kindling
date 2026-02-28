@@ -14,12 +14,11 @@ import argparse
 import json
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from dotenv import load_dotenv
-
 from playwright.sync_api import sync_playwright
 
 CONTENT_CAPTURE_SELECTORS = (
@@ -103,15 +102,11 @@ def parse_footer_nav_text(text):
     if page_match:
         return int(page_match.group(1)), int(page_match.group(2)), None, None
 
-    location_match = re.search(
-        r"location\s+(\d+)\s+of\s+(\d+)", normalized, re.IGNORECASE
-    )
+    location_match = re.search(r"location\s+(\d+)\s+of\s+(\d+)", normalized, re.IGNORECASE)
     if location_match:
         return None, None, int(location_match.group(1)), int(location_match.group(2))
 
-    roman_match = re.search(
-        r"page\s+([ivxlcdm]+)\s+of\s+(\d+)", normalized, re.IGNORECASE
-    )
+    roman_match = re.search(r"page\s+([ivxlcdm]+)\s+of\s+(\d+)", normalized, re.IGNORECASE)
     if roman_match:
         location = deromanize(roman_match.group(1))
         if location is not None:
@@ -314,9 +309,7 @@ def go_to_page(page, page_number):
             fallback_menu.click()
         page.wait_for_timeout(600)
 
-        go_to_page_item = page.locator(
-            GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Page"
-        ).first
+        go_to_page_item = page.locator(GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Page").first
         go_to_page_item.wait_for(state="visible", timeout=5000)
         go_to_page_item.click()
         page.wait_for_timeout(250)
@@ -354,8 +347,7 @@ def restore_start_position(page, start_page=None, start_location=None):
 
     if start_location is not None and start_location > 0:
         print(
-            "Warning: start position uses location values; "
-            "location-based restore is unavailable."
+            "Warning: start position uses location values; location-based restore is unavailable."
         )
         return False
 
@@ -443,9 +435,7 @@ def extract_toc_entries(page, max_scroll_passes=160):
                 except Exception:
                     continue
 
-                current, total, current_location, total_location = get_page_info_with_retry(
-                    page
-                )
+                current, total, current_location, total_location = get_page_info_with_retry(page)
 
                 seen_entries.add(entry_key)
                 added_this_round += 1
@@ -456,9 +446,7 @@ def extract_toc_entries(page, max_scroll_passes=160):
                         "page": current,
                         "location": current_location,
                         "total": (
-                            total
-                            if current is not None and total is not None
-                            else total_location
+                            total if current is not None and total is not None else total_location
                         ),
                     }
                 )
@@ -572,15 +560,9 @@ def build_toc_payload(target_asin, entries, include_end_matter):
     summary = {
         "entry_count": len(output_entries),
         "content_count": sum(1 for item in output_entries if item["kind"] == "content"),
-        "end_matter_count": sum(
-            1 for item in output_entries if item["kind"] == "end_matter"
-        ),
-        "first_end_matter_title": (
-            first_end_matter.get("title") if first_end_matter else None
-        ),
-        "first_end_matter_page": (
-            first_end_matter.get("page") if first_end_matter else None
-        ),
+        "end_matter_count": sum(1 for item in output_entries if item["kind"] == "end_matter"),
+        "first_end_matter_title": (first_end_matter.get("title") if first_end_matter else None),
+        "first_end_matter_page": (first_end_matter.get("page") if first_end_matter else None),
         "first_end_matter_location": (
             first_end_matter.get("location") if first_end_matter else None
         ),
@@ -591,7 +573,7 @@ def build_toc_payload(target_asin, entries, include_end_matter):
 
     return {
         "asin": target_asin,
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_at": datetime.now(UTC).isoformat(),
         "entries": output_entries,
         "summary": summary,
     }
@@ -610,7 +592,7 @@ def _coerce_positive_int(value):
     """Parse an integer-like value and require positive integer output."""
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed if parsed > 0 else None
 
@@ -824,11 +806,7 @@ def wait_for_turn_content_change(
     next_retry_at = time.time() + (retry_interval_ms / 1000)
     while time.time() < deadline:
         current_signature = get_content_signature(page)
-        if (
-            previous_signature
-            and current_signature
-            and current_signature != previous_signature
-        ):
+        if previous_signature and current_signature and current_signature != previous_signature:
             return True, retries_used
 
         now = time.time()
@@ -891,15 +869,13 @@ def build_flattened_metadata(target_asin, info_payload=None, yj_payload=None):
         if raw_title is not None:
             title = str(raw_title)
 
-        authors = normalize_authors(
-            yj_payload.get("authorsList") or yj_payload.get("authorList")
-        )
+        authors = normalize_authors(yj_payload.get("authorsList") or yj_payload.get("authorList"))
 
     return {
         "asin": meta_asin or target_asin,
         "title": title,
         "authors": authors,
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_at": datetime.now(UTC).isoformat(),
         "sources": {
             "start_reading": info_payload is not None,
             "yj_metadata": yj_payload is not None,
@@ -1172,9 +1148,7 @@ def main():
     parser.add_argument(
         "--seconds", type=int, default=1, help="Seconds to wait per page (default: 1)"
     )
-    parser.add_argument(
-        "--asin", type=str, default="B00FO74WXA", help="Book ASIN to open"
-    )
+    parser.add_argument("--asin", type=str, default="B00FO74WXA", help="Book ASIN to open")
     parser.add_argument(
         "--pages", type=int, default=0, help="Number of pages to advance (0 = unlimited)"
     )
@@ -1185,7 +1159,9 @@ def main():
         help="Jump to a specific page before capture starts",
     )
     parser.add_argument(
-        "--no-restart", action="store_true", help="Resume from current page instead of starting from the beginning"
+        "--no-restart",
+        action="store_true",
+        help="Resume from current page instead of starting from the beginning",
     )
     parser.add_argument(
         "--no-metadata",
@@ -1299,8 +1275,8 @@ def main():
         else:
             print("Warning: could not fully apply reader settings; continuing.")
 
-        initial_page, _initial_total, initial_location, _initial_total_location = (
-            get_page_info(page)
+        initial_page, _initial_total, initial_location, _initial_total_location = get_page_info(
+            page
         )
         if initial_page is not None:
             print(f"Info: saved start position page {initial_page}.")
@@ -1349,8 +1325,7 @@ def main():
             marker = toc_summary["first_end_matter_title"]
             if toc_summary["first_end_matter_page"] is not None:
                 print(
-                    "TOC end-matter marker: "
-                    f"{marker} (page {toc_summary['first_end_matter_page']})"
+                    f"TOC end-matter marker: {marker} (page {toc_summary['first_end_matter_page']})"
                 )
             elif toc_summary["first_end_matter_location"] is not None:
                 print(
@@ -1429,7 +1404,7 @@ def main():
         print(f"Auto-advancing every {args.seconds}s. Press Ctrl+C to stop.\n")
 
         pages_turned = 0
-        pages_manifest_captured_at = datetime.now(timezone.utc).isoformat()
+        pages_manifest_captured_at = datetime.now(UTC).isoformat()
         pages_manifest_warning_printed = False
         capture_stats = {
             "new_count": 0,
@@ -1479,24 +1454,15 @@ def main():
                 # Check if we've reached the last page
                 current, total, current_location, total_location = get_page_info(page)
                 has_page_bounds = current is not None and total is not None
-                has_location_bounds = (
-                    current_location is not None and total_location is not None
-                )
+                has_location_bounds = current_location is not None and total_location is not None
                 if has_page_bounds and content_max_page is not None:
                     if current >= content_max_page:
-                        print(
-                            f"Reached TOC content boundary (page {content_max_page}). Done!"
-                        )
+                        print(f"Reached TOC content boundary (page {content_max_page}). Done!")
                         break
-                if (
-                    not has_page_bounds
-                    and has_location_bounds
-                    and content_max_location is not None
-                ):
+                if not has_page_bounds and has_location_bounds and content_max_location is not None:
                     if current_location >= content_max_location:
                         print(
-                            "Reached TOC content boundary "
-                            f"(location {content_max_location}). Done!"
+                            f"Reached TOC content boundary (location {content_max_location}). Done!"
                         )
                         break
                 if has_page_bounds and current >= total:
@@ -1534,9 +1500,7 @@ def main():
                 )
                 current, total, current_location, total_location = get_page_info(page)
                 changed_by_page_number = (
-                    previous_page is not None
-                    and current is not None
-                    and current != previous_page
+                    previous_page is not None and current is not None and current != previous_page
                 )
                 changed_by_location = (
                     previous_location is not None
@@ -1550,9 +1514,7 @@ def main():
                     if changed_by_footer_value:
                         print("Info: footer fallback confirmed page turn.")
                     else:
-                        print(
-                            "Warning: page content did not confirm change within 8s; continuing."
-                        )
+                        print("Warning: page content did not confirm change within 8s; continuing.")
                 on_page_turn(page, current, total, current_location, total_location)
                 capture_status, _screenshot_path = save_page_screenshot(
                     page,
