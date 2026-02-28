@@ -36,7 +36,7 @@ make check
 ## Extract pages
 
 ```bash
-python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position] [--overwrite-existing]
+python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1|--start-location 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position] [--overwrite-existing]
 ```
 
 | Flag | Default | Description |
@@ -44,7 +44,8 @@ python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start
 | `--seconds` | 1 | Seconds to wait per page |
 | `--asin` | B00FO74WXA | Book ASIN (from the Amazon book URL) |
 | `--pages` | 0 | Number of pages to advance (0 = unlimited) |
-| `--start-page` | off | Jump to a specific page before capture starts |
+| `--start-page` | off | Jump to a specific page before capture starts (mutually exclusive with `--start-location`) |
+| `--start-location` | off | Jump to a specific location before capture starts (mutually exclusive with `--start-page`) |
 | `--no-restart` | off | Resume from current page instead of starting from the cover |
 | `--no-metadata` | off | Disable network metadata capture and `metadata.json` output |
 | `--include-end-matter` | off | Disable TOC-based trimming and include end matter |
@@ -63,6 +64,9 @@ python scripts/extract.py --asin B00FO74WXA --no-restart
 
 # Jump directly to a specific page before capture starts
 python scripts/extract.py --asin B00FO74WXA --start-page 238 --pages 5
+
+# Jump directly to a specific location before capture starts
+python scripts/extract.py --asin B00FO74WXA --start-location 250 --pages 5
 
 # Re-capture and overwrite already saved pages
 python scripts/extract.py --asin B00FO74WXA --overwrite-existing
@@ -115,7 +119,7 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 
 - Opens your book in Kindle Cloud Reader via Playwright
 - Saves screenshots to `./books/<asin>/pages/` with canonical nav-keyed names (`page-0238-of-0452.png`, `loc-0002-of-6446.png`)
-- Captures metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
+- Captures normalized metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
 - Transcribes screenshots with OpenAI (2-pass OCR + QA) into `./books/<asin>/transcripts/`
 - Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)
 - Restores your reading position when done
@@ -126,14 +130,15 @@ The transcription script writes:
 
 - `books/<asin>/transcripts/manifest.json` (run metadata and counts)
 - `books/<asin>/transcripts/captures.jsonl` (one record per capture)
-- `books/<asin>/transcripts/canonical/*.json` (one result per unique image hash)
+- `books/<asin>/transcripts/canonical/*.json` (one result per captured page image)
 - `books/<asin>/transcripts/book.md` (compiled transcript in reading order)
 
 ## Notes
 
 - First run requires Amazon login; session is persisted to `~/.kindle-reader-profile`
 - Applies Single Column + Amazon Ember font for consistent captures
+- `metadata.json` stores normalized fields only (`asin`, `title`, `authors`, `captured_at`, `sources`)
 - Capture is idempotent by default: existing nav-keyed files are skipped unless `--overwrite-existing` is set
 - Pages with unknown footer navigation are skipped (no unstable `unknown` files are written)
-- Transcription deduplicates repeated images by exact SHA256 hash and resumes from saved canonical results
+- Transcription resumes from saved per-capture canonical results and auto re-runs when source image path/mtime/size changes (or use `--force`)
 - Press `Ctrl+C` to stop at any time

@@ -2,8 +2,8 @@
 Transcribe Kindle page screenshots using OpenAI vision models.
 
 This script reads images from books/<asin>/pages, performs OCR with a quality-first
-2-pass pipeline (OCR + QA), deduplicates repeated images by SHA256, and writes
-structured outputs plus a compiled markdown transcript.
+2-pass pipeline (OCR + QA), and writes structured outputs plus a compiled
+markdown transcript.
 
 Usage:
     python scripts/transcribe.py --asin B00FO74WXA
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import hashlib
 import json
 import os
 import random
@@ -159,17 +158,6 @@ def validate_ocr_result(payload: Any) -> dict[str, Any]:
     }
 
 
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as f:
-        while True:
-            chunk = f.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def encode_image_data_url(path: Path) -> str:
     raw = path.read_bytes()
     b64 = base64.b64encode(raw).decode("ascii")
@@ -204,6 +192,48 @@ def parse_capture_metadata_from_filename(name: str) -> dict[str, Any]:
         metadata["total_location"] = parse_int(location_match.group(2))
 
     return metadata
+
+
+def build_capture_id(capture: dict[str, Any], *, fallback_index: int) -> str:
+    raw_path = capture.get("path")
+    raw_file = capture.get("file")
+
+    if isinstance(raw_path, str) and raw_path.strip():
+        base = Path(raw_path).stem
+    elif isinstance(raw_file, str) and raw_file.strip():
+        base = Path(raw_file).stem
+    else:
+        base = f"capture-{fallback_index:05d}"
+
+    return sanitize_slug(base)
+
+
+def build_source_image_fingerprint(image_path: Path, image_rel: str) -> dict[str, Any]:
+    stat = image_path.stat()
+    return {
+        "path": image_rel,
+        "size_bytes": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def source_image_fingerprint_matches(payload: dict[str, Any], expected: dict[str, Any]) -> bool:
+    source_image = payload.get("source_image")
+    if not isinstance(source_image, dict):
+        return False
+
+    path = source_image.get("path")
+    size_bytes = parse_int(source_image.get("size_bytes"))
+    mtime_ns = parse_int(source_image.get("mtime_ns"))
+
+    return (
+        isinstance(path, str)
+        and path == expected["path"]
+        and isinstance(size_bytes, int)
+        and size_bytes == expected["size_bytes"]
+        and isinstance(mtime_ns, int)
+        and mtime_ns == expected["mtime_ns"]
+    )
 
 
 def format_capture_label(capture: dict[str, Any]) -> str:
@@ -605,8 +635,8 @@ def build_markdown_transcript(
         lines.append(f"### {format_capture_label(capture)}")
         lines.append("")
 
-        canonical_id = capture.get("canonical_id")
-        canonical = canonical_results.get(str(canonical_id), {})
+        capture_id = capture.get("capture_id")
+        canonical = canonical_results.get(str(capture_id), {})
         status = canonical.get("status")
 
         if status == "completed":
@@ -735,28 +765,14 @@ def main() -> int:
         print("Error: selection produced zero captures.")
         return 1
 
-    for capture in selected_captures:
-        capture["sha256"] = file_sha256(capture["source_path"])
-        capture["canonical_id"] = f"img-{capture['sha256']}"
+    capture_id_counts: dict[str, int] = {}
+    for idx, capture in enumerate(selected_captures):
+        base_id = build_capture_id(capture, fallback_index=idx)
+        count = capture_id_counts.get(base_id, 0) + 1
+        capture_id_counts[base_id] = count
+        capture["capture_id"] = base_id if count == 1 else f"{base_id}-{count}"
 
-    groups: dict[str, dict[str, Any]] = {}
-    for capture in selected_captures:
-        canonical_id = capture["canonical_id"]
-        entry = groups.setdefault(
-            canonical_id,
-            {
-                "canonical_id": canonical_id,
-                "sha256": capture["sha256"],
-                "representative_path": capture["source_path"],
-                "captures": [],
-            },
-        )
-        entry["captures"].append(capture)
-
-    print(
-        f"Selected captures: {len(selected_captures)} | "
-        f"Unique images: {len(groups)} | Source: {source_info['kind']}"
-    )
+    print(f"Selected captures: {len(selected_captures)} | Source: {source_info['kind']}")
 
     if args.dry_run:
         print("Dry run only. No API calls or file writes.")
@@ -776,12 +792,20 @@ def main() -> int:
         return 1
 
     canonical_results: dict[str, dict[str, Any]] = {}
-    completed_unique = 0
-    failed_unique = 0
-    resumed_unique = 0
+    completed_count = 0
+    failed_count = 0
+    resumed_count = 0
 
-    for canonical_id, group in groups.items():
-        canonical_path = canonical_dir / f"{canonical_id}.json"
+    for capture in selected_captures:
+        capture_id = capture["capture_id"]
+        canonical_path = canonical_dir / f"{capture_id}.json"
+        image_path = capture["source_path"]
+        try:
+            image_rel = image_path.relative_to(book_dir).as_posix()
+        except Exception:
+            image_rel = str(image_path)
+        source_image_fingerprint = build_source_image_fingerprint(image_path, image_rel)
+
         existing_payload: dict[str, Any] | None = None
         if canonical_path.exists():
             try:
@@ -791,27 +815,28 @@ def main() -> int:
             except Exception:
                 existing_payload = None
 
-        if (
+        has_reusable_status = (
             not args.force
             and isinstance(existing_payload, dict)
             and existing_payload.get("status") == "completed"
             and isinstance(existing_payload.get("final"), dict)
             and isinstance(existing_payload["final"].get("text"), str)
-        ):
-            canonical_results[canonical_id] = existing_payload
-            resumed_unique += 1
-            completed_unique += 1
-            print(f"[{canonical_id}] reused existing completed transcript")
-            continue
+        )
+        if has_reusable_status:
+            if source_image_fingerprint_matches(existing_payload, source_image_fingerprint):
+                canonical_results[capture_id] = existing_payload
+                resumed_count += 1
+                completed_count += 1
+                print(f"[{capture_id}] reused existing completed transcript")
+                continue
+            print(
+                f"[{capture_id}] cache invalidated (source image changed or fingerprint missing); "
+                "re-running OCR"
+            )
 
-        image_path = group["representative_path"]
-        try:
-            image_rel = image_path.relative_to(book_dir).as_posix()
-        except Exception:
-            image_rel = str(image_path)
         image_data_url = encode_image_data_url(image_path)
 
-        print(f"[{canonical_id}] OCR pass on {image_rel}")
+        print(f"[{capture_id}] OCR pass on {image_rel}")
 
         created_at = (
             existing_payload.get("created_at")
@@ -820,20 +845,17 @@ def main() -> int:
         )
 
         result_payload: dict[str, Any] = {
-            "canonical_id": canonical_id,
-            "image_sha256": group["sha256"],
-            "representative_image": image_rel,
-            "captures": [
-                {
-                    "index": c.get("index"),
-                    "path": c.get("path"),
-                    "page": c.get("page"),
-                    "total": c.get("total"),
-                    "location": c.get("location"),
-                    "total_location": c.get("total_location"),
-                }
-                for c in group["captures"]
-            ],
+            "capture_id": capture_id,
+            "image_path": image_rel,
+            "source_image": source_image_fingerprint,
+            "capture": {
+                "index": capture.get("index"),
+                "path": capture.get("path"),
+                "page": capture.get("page"),
+                "total": capture.get("total"),
+                "location": capture.get("location"),
+                "total_location": capture.get("total_location"),
+            },
             "created_at": created_at,
             "updated_at": utc_now_iso(),
             "status": "error",
@@ -846,7 +868,7 @@ def main() -> int:
         try:
             start_pass1 = time.time()
             pass1_result, pass1_attempts = retry_call(
-                f"{canonical_id} pass1",
+                f"{capture_id} pass1",
                 args.max_retries,
                 lambda: ocr_client.pass1(
                     model=args.model,
@@ -858,7 +880,7 @@ def main() -> int:
 
             start_pass2 = time.time()
             pass2_result, pass2_attempts = retry_call(
-                f"{canonical_id} pass2",
+                f"{capture_id} pass2",
                 args.max_retries,
                 lambda: ocr_client.pass2(
                     model=args.qa_model,
@@ -886,10 +908,10 @@ def main() -> int:
             result_payload["updated_at"] = utc_now_iso()
 
             write_json(canonical_path, result_payload)
-            canonical_results[canonical_id] = result_payload
-            completed_unique += 1
+            canonical_results[capture_id] = result_payload
+            completed_count += 1
             print(
-                f"[{canonical_id}] completed "
+                f"[{capture_id}] completed "
                 f"(confidence={pass2_result['confidence']:.2f}, "
                 f"uncertainties={len(pass2_result['uncertainties'])})"
             )
@@ -900,14 +922,14 @@ def main() -> int:
             }
             result_payload["updated_at"] = utc_now_iso()
             write_json(canonical_path, result_payload)
-            canonical_results[canonical_id] = result_payload
-            failed_unique += 1
-            print(f"[{canonical_id}] failed: {exc}")
+            canonical_results[capture_id] = result_payload
+            failed_count += 1
+            print(f"[{capture_id}] failed: {exc}")
 
     capture_records: list[dict[str, Any]] = []
     for capture in selected_captures:
-        canonical_id = capture["canonical_id"]
-        canonical_result = canonical_results.get(canonical_id, {})
+        capture_id = capture["capture_id"]
+        canonical_result = canonical_results.get(capture_id, {})
 
         final = canonical_result.get("final")
         if isinstance(final, dict):
@@ -927,9 +949,8 @@ def main() -> int:
                 "total": capture.get("total"),
                 "location": capture.get("location"),
                 "total_location": capture.get("total_location"),
-                "sha256": capture.get("sha256"),
-                "canonical_id": canonical_id,
-                "transcript_ref": f"canonical/{canonical_id}.json",
+                "capture_id": capture_id,
+                "transcript_ref": f"canonical/{capture_id}.json",
                 "status": canonical_result.get("status"),
                 "confidence": confidence,
                 "uncertainty_count": uncertainty_count,
@@ -953,12 +974,12 @@ def main() -> int:
         else utc_now_iso()
     )
 
-    successful_unique = completed_unique
-    total_unique = len(groups)
-    failure_ratio = (failed_unique / total_unique) if total_unique else 0.0
+    successful_count = completed_count
+    total_count = len(selected_captures)
+    failure_ratio = (failed_count / total_count) if total_count else 0.0
 
-    status = "completed" if failed_unique == 0 else "partial"
-    if successful_unique == 0:
+    status = "completed" if failed_count == 0 else "partial"
+    if successful_count == 0:
         status = "failed"
 
     manifest_payload = {
@@ -980,10 +1001,10 @@ def main() -> int:
         },
         "counts": {
             "selected_captures": len(selected_captures),
-            "unique_images": total_unique,
-            "completed_unique_images": completed_unique,
-            "failed_unique_images": failed_unique,
-            "resumed_unique_images": resumed_unique,
+            "processed_captures": total_count,
+            "completed_captures": completed_count,
+            "failed_captures": failed_count,
+            "resumed_captures": resumed_count,
             "failure_ratio": round(failure_ratio, 6),
         },
         "files": {
@@ -996,7 +1017,7 @@ def main() -> int:
 
     print(f"Wrote transcript outputs: {book_markdown_path}, {captures_jsonl_path}, {manifest_path}")
 
-    if successful_unique == 0:
+    if successful_count == 0:
         print("Error: no pages were transcribed successfully.")
         return 1
 

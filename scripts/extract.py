@@ -5,7 +5,8 @@ restores your reading position when done.
 
 Usage:
     python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0]
-                              [--start-page 1] [--no-restart] [--no-metadata]
+                              [--start-page 1] [--start-location 1]
+                              [--no-restart] [--no-metadata]
                               [--include-end-matter] [--refresh-toc]
                               [--no-restore-position] [--overwrite-existing]
 """
@@ -327,6 +328,60 @@ def go_to_page(page, page_number):
         return False
 
 
+def go_to_location(page, location_number):
+    """Best-effort navigation to a specific location using the reader menu."""
+    if location_number is None or location_number < 1:
+        return False
+
+    try:
+        reveal_top_chrome(page, NAVIGATION_MENU_TEST_ID)
+        menu_btn = page.get_by_test_id(NAVIGATION_MENU_TEST_ID).first
+        if menu_btn.count() > 0 and menu_btn.is_visible():
+            menu_btn.click()
+        else:
+            fallback_menu = page.get_by_label(READER_MENU_LABEL).first
+            if fallback_menu.count() == 0:
+                return False
+            fallback_menu.click()
+        page.wait_for_timeout(600)
+
+        go_to_location_item = page.locator(
+            GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Location"
+        ).first
+        if go_to_location_item.count() == 0:
+            go_to_location_item = page.locator(
+                GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Page"
+            ).first
+        go_to_location_item.wait_for(state="visible", timeout=5000)
+        go_to_location_item.click()
+        page.wait_for_timeout(250)
+
+        go_to_location_input = None
+        for selector in (
+            'ion-modal input[placeholder*="location" i]',
+            GO_TO_PAGE_INPUT_SELECTOR,
+            "ion-modal input",
+        ):
+            candidate = page.locator(selector).first
+            if candidate.count() > 0:
+                go_to_location_input = candidate
+                break
+
+        go_to_location_button = page.locator(GO_TO_PAGE_BUTTON_SELECTOR).first
+        if go_to_location_button.count() == 0:
+            go_to_location_button = page.locator("ion-modal ion-button", has_text="Go").first
+
+        if go_to_location_input is None or go_to_location_button.count() == 0:
+            return False
+
+        go_to_location_input.fill(str(location_number))
+        go_to_location_button.click()
+        page.wait_for_timeout(900)
+        return True
+    except Exception:
+        return False
+
+
 def restore_start_position(page, start_page=None, start_location=None):
     """Best-effort: restore the reader to the position captured at startup."""
     try:
@@ -346,10 +401,15 @@ def restore_start_position(page, start_page=None, start_location=None):
             return False
 
     if start_location is not None and start_location > 0:
-        print(
-            "Warning: start position uses location values; location-based restore is unavailable."
-        )
-        return False
+        try:
+            if go_to_location(page, start_location):
+                print(f"Info: restored start position to location {start_location}.")
+                return True
+            print(f"Warning: could not restore start position to location {start_location}.")
+            return False
+        except Exception:
+            print(f"Warning: restore to start location {start_location} failed.")
+            return False
 
     print("Warning: no start position was captured; skipping restore.")
     return False
@@ -855,7 +915,10 @@ def normalize_authors(raw):
 
 
 def build_flattened_metadata(target_asin, info_payload=None, yj_payload=None):
-    """Build normalized metadata from intercepted network payloads."""
+    """Build normalized metadata from intercepted network payloads.
+
+    Raw intercepted payloads are intentionally not persisted.
+    """
     meta_asin = None
     title = None
     authors = []
@@ -880,8 +943,6 @@ def build_flattened_metadata(target_asin, info_payload=None, yj_payload=None):
             "start_reading": info_payload is not None,
             "yj_metadata": yj_payload is not None,
         },
-        "info": info_payload,
-        "meta": yj_payload,
     }
 
 
@@ -1022,8 +1083,13 @@ def build_canonical_capture_filename(
     total=None,
     current_location=None,
     total_location=None,
+    prefer_location=False,
 ):
     """Return canonical nav-key filename or None when nav values are unknown."""
+    if prefer_location and current_location is not None and total_location is not None:
+        width = max(4, len(str(total_location)))
+        return f"loc-{current_location:0{width}d}-of-{total_location:0{width}d}.png"
+
     if current is not None and total is not None:
         return f"page-{current:04d}-of-{total:04d}.png"
 
@@ -1079,6 +1145,7 @@ def save_page_screenshot(
     page,
     screenshots_dir,
     overwrite_existing=False,
+    prefer_location=False,
     current=None,
     total=None,
     current_location=None,
@@ -1090,6 +1157,7 @@ def save_page_screenshot(
         total=total,
         current_location=current_location,
         total_location=total_location,
+        prefer_location=prefer_location,
     )
     if not filename:
         print("Info: skipping capture because page/location is unknown.")
@@ -1159,6 +1227,12 @@ def main():
         help="Jump to a specific page before capture starts",
     )
     parser.add_argument(
+        "--start-location",
+        type=int,
+        default=None,
+        help="Jump to a specific location before capture starts",
+    )
+    parser.add_argument(
         "--no-restart",
         action="store_true",
         help="Resume from current page instead of starting from the beginning",
@@ -1191,6 +1265,10 @@ def main():
     args = parser.parse_args()
     if args.start_page is not None and args.start_page < 1:
         parser.error("--start-page must be >= 1")
+    if args.start_location is not None and args.start_location < 1:
+        parser.error("--start-location must be >= 1")
+    if args.start_page is not None and args.start_location is not None:
+        parser.error("--start-page and --start-location are mutually exclusive")
 
     user_data_dir = Path.home() / ".kindle-reader-profile"
     book_dir = Path.cwd() / "books" / sanitize_slug(args.asin)
@@ -1294,12 +1372,27 @@ def main():
                 print(f"Loaded TOC from cache: {toc_path} ({len(toc_entries)} entries).")
 
         if not toc_entries:
-            try:
-                toc_entries = extract_toc_entries(page)
-            except Exception:
-                print("Warning: TOC extraction failed; continuing without TOC boundaries.")
-                toc_entries = []
-            toc_source = "browser"
+            should_skip_live_toc = (
+                args.no_restart
+                and args.start_page is None
+                and args.start_location is None
+                and not args.refresh_toc
+                and initial_page is None
+                and initial_location is not None
+            )
+            if should_skip_live_toc:
+                toc_source = "skipped_no_restart_location"
+                print(
+                    "Info: skipping live TOC extraction for location-based --no-restart run "
+                    "to avoid position drift."
+                )
+            else:
+                try:
+                    toc_entries = extract_toc_entries(page)
+                except Exception:
+                    print("Warning: TOC extraction failed; continuing without TOC boundaries.")
+                    toc_entries = []
+                toc_source = "browser"
 
         toc_payload = build_toc_payload(args.asin, toc_entries, args.include_end_matter)
         if toc_source == "browser":
@@ -1319,6 +1412,8 @@ def main():
 
         if toc_source == "cache":
             print(f"TOC entries loaded: {toc_summary['entry_count']}")
+        elif toc_source == "skipped_no_restart_location":
+            print("TOC entries skipped: preserving current location for --no-restart run.")
         else:
             print(f"TOC entries captured: {toc_summary['entry_count']}")
         if toc_summary["first_end_matter_title"]:
@@ -1381,6 +1476,14 @@ def main():
                 raise SystemExit(
                     f"Error: could not navigate to start page {args.start_page}; aborting."
                 )
+        elif args.start_location is not None:
+            print(f"Navigating to start location {args.start_location}...")
+            if go_to_location(page, args.start_location):
+                print(f"Info: jumped to start location {args.start_location}.")
+            else:
+                raise SystemExit(
+                    f"Error: could not navigate to start location {args.start_location}; aborting."
+                )
         elif not args.no_restart:
             print("Navigating to the beginning...")
             if go_to_cover(page):
@@ -1389,6 +1492,21 @@ def main():
                 print("Could not find cover button — starting from current page.")
 
         current, total, current_location, total_location = get_page_info(page)
+        nav_mode = "unknown"
+        if args.start_location is not None or (
+            current_location is not None and total_location is not None
+        ):
+            nav_mode = "location"
+        elif args.start_page is not None or (current is not None and total is not None):
+            nav_mode = "page"
+
+        if nav_mode == "location":
+            print("Info: navigation mode locked to location.")
+        elif nav_mode == "page":
+            print("Info: navigation mode locked to page.")
+        else:
+            print("Warning: navigation mode is unknown; using mixed page/location checks.")
+
         if current is not None and total is not None:
             print(f"On page {current} of {total}.")
         elif current_location is not None and total_location is not None:
@@ -1437,6 +1555,7 @@ def main():
             page,
             screenshots_dir,
             overwrite_existing=args.overwrite_existing,
+            prefer_location=(nav_mode == "location"),
             current=current,
             total=total,
             current_location=current_location,
@@ -1455,28 +1574,59 @@ def main():
                 current, total, current_location, total_location = get_page_info(page)
                 has_page_bounds = current is not None and total is not None
                 has_location_bounds = current_location is not None and total_location is not None
-                if has_page_bounds and content_max_page is not None:
-                    if current >= content_max_page:
+                if nav_mode == "page":
+                    if (
+                        has_page_bounds
+                        and content_max_page is not None
+                        and current >= content_max_page
+                    ):
                         print(f"Reached TOC content boundary (page {content_max_page}). Done!")
                         break
-                if not has_page_bounds and has_location_bounds and content_max_location is not None:
-                    if current_location >= content_max_location:
+                    if has_page_bounds and current >= total:
+                        print(f"Reached the last page ({current} of {total}). Done!")
+                        break
+                elif nav_mode == "location":
+                    if (
+                        has_location_bounds
+                        and content_max_location is not None
+                        and current_location >= content_max_location
+                    ):
                         print(
                             f"Reached TOC content boundary (location {content_max_location}). Done!"
                         )
                         break
-                if has_page_bounds and current >= total:
-                    print(f"Reached the last page ({current} of {total}). Done!")
-                    break
-                if (
-                    not has_page_bounds
-                    and has_location_bounds
-                    and current_location >= total_location
-                ):
-                    print(
-                        f"Reached the last location ({current_location} of {total_location}). Done!"
-                    )
-                    break
+                    if has_location_bounds and current_location >= total_location:
+                        print(
+                            f"Reached the last location ({current_location} of {total_location}). Done!"
+                        )
+                        break
+                else:
+                    if has_page_bounds and content_max_page is not None:
+                        if current >= content_max_page:
+                            print(f"Reached TOC content boundary (page {content_max_page}). Done!")
+                            break
+                    if (
+                        not has_page_bounds
+                        and has_location_bounds
+                        and content_max_location is not None
+                    ):
+                        if current_location >= content_max_location:
+                            print(
+                                f"Reached TOC content boundary (location {content_max_location}). Done!"
+                            )
+                            break
+                    if has_page_bounds and current >= total:
+                        print(f"Reached the last page ({current} of {total}). Done!")
+                        break
+                    if (
+                        not has_page_bounds
+                        and has_location_bounds
+                        and current_location >= total_location
+                    ):
+                        print(
+                            f"Reached the last location ({current_location} of {total_location}). Done!"
+                        )
+                        break
 
                 if dismiss_possible_alert(page):
                     print("Info: dismissed blocking alert.")
@@ -1507,7 +1657,12 @@ def main():
                     and current_location is not None
                     and current_location != previous_location
                 )
-                changed_by_footer_value = changed_by_page_number or changed_by_location
+                if nav_mode == "page":
+                    changed_by_footer_value = changed_by_page_number
+                elif nav_mode == "location":
+                    changed_by_footer_value = changed_by_location
+                else:
+                    changed_by_footer_value = changed_by_page_number or changed_by_location
                 if changed_by_signature or changed_by_footer_value:
                     pages_turned += 1
                 if not changed_by_signature:
@@ -1520,6 +1675,7 @@ def main():
                     page,
                     screenshots_dir,
                     overwrite_existing=args.overwrite_existing,
+                    prefer_location=(nav_mode == "location"),
                     current=current,
                     total=total,
                     current_location=current_location,
@@ -1543,14 +1699,24 @@ def main():
                 print("Info: start position restore disabled (--no-restore-position).")
             else:
                 print("Info: restoring start position...")
-                restore_start_position(page, initial_page, initial_location)
+                try:
+                    restore_start_position(page, initial_page, initial_location)
+                except KeyboardInterrupt:
+                    print("Info: interrupted while restoring start position; continuing shutdown.")
+                except Exception:
+                    print("Warning: unexpected error while restoring start position.")
 
             print("Closing in 5 seconds (press Ctrl+C again to close immediately)...")
             try:
                 time.sleep(5)
             except KeyboardInterrupt:
                 pass
-            context.close()
+            try:
+                context.close()
+            except KeyboardInterrupt:
+                print("Info: interrupted while closing browser context.")
+            except Exception:
+                print("Warning: browser context close raised an unexpected error.")
 
 
 if __name__ == "__main__":
