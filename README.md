@@ -36,7 +36,7 @@ make check
 ## Extract pages
 
 ```bash
-python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1|--start-location 1] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position] [--overwrite-existing]
+python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start-page 1|--start-location 1] [--capture-pages 50-55,114,140] [--no-restart] [--no-metadata] [--include-end-matter] [--refresh-toc] [--no-restore-position] [--overwrite-existing]
 ```
 
 | Flag | Default | Description |
@@ -46,6 +46,7 @@ python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0] [--start
 | `--pages` | 0 | Number of pages to advance (0 = unlimited) |
 | `--start-page` | off | Jump to a specific page before capture starts (mutually exclusive with `--start-location`) |
 | `--start-location` | off | Jump to a specific location before capture starts (mutually exclusive with `--start-page`) |
+| `--capture-pages` | off | Capture an explicit page list/ranges using Go to Page (e.g. `50-55,114,140`) |
 | `--no-restart` | off | Resume from current page instead of starting from the cover |
 | `--no-metadata` | off | Disable network metadata capture and `metadata.json` output |
 | `--include-end-matter` | off | Disable TOC-based trimming and include end matter |
@@ -70,6 +71,9 @@ python scripts/extract.py --asin B00FO74WXA --start-location 250 --pages 5
 
 # Re-capture and overwrite already saved pages
 python scripts/extract.py --asin B00FO74WXA --overwrite-existing
+
+# Capture an exact list/ranges of pages (no long auto-turn run)
+python scripts/extract.py --asin B00FO74WXA --capture-pages 50-55,114,140 --no-metadata
 ```
 
 ## Transcribe pages
@@ -87,7 +91,7 @@ OPENAI_API_KEY=your_key_here
 Run transcription:
 
 ```bash
-python scripts/transcribe.py --asin B00FO74WXA [--model gpt-5] [--qa-model gpt-5] [--start-at 0] [--max-pages 0] [--force] [--dry-run] [--max-retries 3] [--max-output-tokens 4000]
+python scripts/transcribe.py --asin B00FO74WXA [--model gpt-5] [--qa-model gpt-5] [--start-at 0] [--max-pages 0] [--concurrency 4] [--force] [--dry-run] [--max-retries 3] [--max-output-tokens 4000]
 ```
 
 | Flag | Default | Description |
@@ -97,6 +101,7 @@ python scripts/transcribe.py --asin B00FO74WXA [--model gpt-5] [--qa-model gpt-5
 | `--qa-model` | gpt-5 | QA correction model for pass 2 |
 | `--start-at` | 0 | Start index in ordered capture list |
 | `--max-pages` | 0 | Max captures after start index (0 = all) |
+| `--concurrency` | 4 | Number of captures to transcribe concurrently |
 | `--force` | off | Re-run OCR even when canonical output exists |
 | `--dry-run` | off | Show planned workload without API calls |
 | `--max-retries` | 3 | Retry attempts per OCR pass on transient failures |
@@ -110,6 +115,9 @@ python scripts/transcribe.py --asin B00FO74WXA
 
 # Transcribe 25 captures starting from index 100
 python scripts/transcribe.py --asin B00FO74WXA --start-at 100 --max-pages 25
+
+# Transcribe with 4 workers in parallel
+python scripts/transcribe.py --asin B00FO74WXA --concurrency 4
 
 # Preview workload only
 python scripts/transcribe.py --asin B00FO74WXA --dry-run

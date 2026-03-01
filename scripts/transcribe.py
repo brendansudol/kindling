@@ -8,6 +8,7 @@ markdown transcript.
 Usage:
     python scripts/transcribe.py --asin B00FO74WXA
     python scripts/transcribe.py --asin B00FO74WXA --start-at 10 --max-pages 25
+    python scripts/transcribe.py --asin B00FO74WXA --concurrency 4
     python scripts/transcribe.py --asin B00FO74WXA --dry-run
 """
 
@@ -19,7 +20,9 @@ import json
 import os
 import random
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +33,9 @@ DEFAULT_MODEL = "gpt-5"
 DEFAULT_QA_MODEL = "gpt-5"
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_MAX_OUTPUT_TOKENS = 4000
+DEFAULT_CONCURRENCY = 4
+
+_THREAD_LOCAL = threading.local()
 
 OCR_OUTPUT_SCHEMA = {
     "type": "object",
@@ -672,6 +678,164 @@ def load_existing_manifest(manifest_path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def get_thread_ocr_client() -> OpenAIResponsesOCR:
+    client = getattr(_THREAD_LOCAL, "ocr_client", None)
+    if client is None:
+        client = OpenAIResponsesOCR()
+        _THREAD_LOCAL.ocr_client = client
+    return client
+
+
+def process_capture(
+    capture: dict[str, Any],
+    *,
+    book_dir: Path,
+    canonical_dir: Path,
+    model: str,
+    qa_model: str,
+    max_retries: int,
+    max_output_tokens: int,
+    force: bool,
+) -> dict[str, Any]:
+    capture_id = str(capture["capture_id"])
+    canonical_path = canonical_dir / f"{capture_id}.json"
+    image_path = capture["source_path"]
+    try:
+        image_rel = image_path.relative_to(book_dir).as_posix()
+    except Exception:
+        image_rel = str(image_path)
+    source_image_fingerprint = build_source_image_fingerprint(image_path, image_rel)
+
+    existing_payload: dict[str, Any] | None = None
+    if canonical_path.exists():
+        try:
+            payload = read_json(canonical_path)
+            if isinstance(payload, dict):
+                existing_payload = payload
+        except Exception:
+            existing_payload = None
+
+    has_reusable_status = (
+        not force
+        and isinstance(existing_payload, dict)
+        and existing_payload.get("status") == "completed"
+        and isinstance(existing_payload.get("final"), dict)
+        and isinstance(existing_payload["final"].get("text"), str)
+    )
+    if has_reusable_status:
+        if source_image_fingerprint_matches(existing_payload, source_image_fingerprint):
+            print(f"[{capture_id}] reused existing completed transcript")
+            return {
+                "capture_id": capture_id,
+                "status": "completed",
+                "was_resumed": True,
+                "result_payload": existing_payload,
+            }
+        print(
+            f"[{capture_id}] cache invalidated (source image changed or fingerprint missing); "
+            "re-running OCR"
+        )
+
+    image_data_url = encode_image_data_url(image_path)
+    print(f"[{capture_id}] OCR pass on {image_rel}")
+
+    created_at = (
+        existing_payload.get("created_at") if isinstance(existing_payload, dict) else utc_now_iso()
+    )
+
+    result_payload: dict[str, Any] = {
+        "capture_id": capture_id,
+        "image_path": image_rel,
+        "source_image": source_image_fingerprint,
+        "capture": {
+            "index": capture.get("index"),
+            "path": capture.get("path"),
+            "page": capture.get("page"),
+            "total": capture.get("total"),
+            "location": capture.get("location"),
+            "total_location": capture.get("total_location"),
+        },
+        "created_at": created_at,
+        "updated_at": utc_now_iso(),
+        "status": "error",
+        "pass1": None,
+        "pass2": None,
+        "final": None,
+        "error": None,
+    }
+
+    try:
+        ocr_client = get_thread_ocr_client()
+
+        start_pass1 = time.time()
+        pass1_result, pass1_attempts = retry_call(
+            f"{capture_id} pass1",
+            max_retries,
+            lambda: ocr_client.pass1(
+                model=model,
+                image_data_url=image_data_url,
+                max_output_tokens=max_output_tokens,
+            ),
+        )
+        pass1_duration_ms = int((time.time() - start_pass1) * 1000)
+
+        start_pass2 = time.time()
+        pass2_result, pass2_attempts = retry_call(
+            f"{capture_id} pass2",
+            max_retries,
+            lambda: ocr_client.pass2(
+                model=qa_model,
+                image_data_url=image_data_url,
+                draft_text=pass1_result["text"],
+                max_output_tokens=max_output_tokens,
+            ),
+        )
+        pass2_duration_ms = int((time.time() - start_pass2) * 1000)
+
+        result_payload["pass1"] = {
+            "model": model,
+            "attempts": pass1_attempts,
+            "duration_ms": pass1_duration_ms,
+            "result": pass1_result,
+        }
+        result_payload["pass2"] = {
+            "model": qa_model,
+            "attempts": pass2_attempts,
+            "duration_ms": pass2_duration_ms,
+            "result": pass2_result,
+        }
+        result_payload["final"] = pass2_result
+        result_payload["status"] = "completed"
+        result_payload["updated_at"] = utc_now_iso()
+
+        write_json(canonical_path, result_payload)
+        print(
+            f"[{capture_id}] completed "
+            f"(confidence={pass2_result['confidence']:.2f}, "
+            f"uncertainties={len(pass2_result['uncertainties'])})"
+        )
+        return {
+            "capture_id": capture_id,
+            "status": "completed",
+            "was_resumed": False,
+            "result_payload": result_payload,
+        }
+    except Exception as exc:
+        result_payload["error"] = {
+            "message": str(exc),
+            "failed_at": utc_now_iso(),
+        }
+        result_payload["updated_at"] = utc_now_iso()
+        write_json(canonical_path, result_payload)
+        print(f"[{capture_id}] failed: {exc}")
+        return {
+            "capture_id": capture_id,
+            "status": "error",
+            "was_resumed": False,
+            "result_payload": result_payload,
+        }
+
+
 def main() -> int:
     load_dotenv()
 
@@ -696,6 +860,12 @@ def main() -> int:
         type=int,
         default=0,
         help="Max captures to process after start index (0 = all)",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_CONCURRENCY,
+        help=f"Number of captures to transcribe concurrently (default: {DEFAULT_CONCURRENCY})",
     )
     parser.add_argument(
         "--force",
@@ -725,6 +895,8 @@ def main() -> int:
         parser.error("--start-at must be >= 0")
     if args.max_pages < 0:
         parser.error("--max-pages must be >= 0")
+    if args.concurrency < 1:
+        parser.error("--concurrency must be >= 1")
     if args.max_retries < 1:
         parser.error("--max-retries must be >= 1")
     if args.max_output_tokens < 256:
@@ -772,7 +944,10 @@ def main() -> int:
         capture_id_counts[base_id] = count
         capture["capture_id"] = base_id if count == 1 else f"{base_id}-{count}"
 
-    print(f"Selected captures: {len(selected_captures)} | Source: {source_info['kind']}")
+    print(
+        f"Selected captures: {len(selected_captures)} | Source: {source_info['kind']} | "
+        f"Concurrency: {args.concurrency}"
+    )
 
     if args.dry_run:
         print("Dry run only. No API calls or file writes.")
@@ -786,7 +961,7 @@ def main() -> int:
     canonical_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        ocr_client = OpenAIResponsesOCR()
+        OpenAIResponsesOCR()
     except Exception as exc:
         print(f"Error: {exc}")
         return 1
@@ -795,136 +970,49 @@ def main() -> int:
     completed_count = 0
     failed_count = 0
     resumed_count = 0
-
-    for capture in selected_captures:
-        capture_id = capture["capture_id"]
-        canonical_path = canonical_dir / f"{capture_id}.json"
-        image_path = capture["source_path"]
-        try:
-            image_rel = image_path.relative_to(book_dir).as_posix()
-        except Exception:
-            image_rel = str(image_path)
-        source_image_fingerprint = build_source_image_fingerprint(image_path, image_rel)
-
-        existing_payload: dict[str, Any] | None = None
-        if canonical_path.exists():
-            try:
-                payload = read_json(canonical_path)
-                if isinstance(payload, dict):
-                    existing_payload = payload
-            except Exception:
-                existing_payload = None
-
-        has_reusable_status = (
-            not args.force
-            and isinstance(existing_payload, dict)
-            and existing_payload.get("status") == "completed"
-            and isinstance(existing_payload.get("final"), dict)
-            and isinstance(existing_payload["final"].get("text"), str)
-        )
-        if has_reusable_status:
-            if source_image_fingerprint_matches(existing_payload, source_image_fingerprint):
-                canonical_results[capture_id] = existing_payload
-                resumed_count += 1
-                completed_count += 1
-                print(f"[{capture_id}] reused existing completed transcript")
-                continue
-            print(
-                f"[{capture_id}] cache invalidated (source image changed or fingerprint missing); "
-                "re-running OCR"
-            )
-
-        image_data_url = encode_image_data_url(image_path)
-
-        print(f"[{capture_id}] OCR pass on {image_rel}")
-
-        created_at = (
-            existing_payload.get("created_at")
-            if isinstance(existing_payload, dict)
-            else utc_now_iso()
-        )
-
-        result_payload: dict[str, Any] = {
-            "capture_id": capture_id,
-            "image_path": image_rel,
-            "source_image": source_image_fingerprint,
-            "capture": {
-                "index": capture.get("index"),
-                "path": capture.get("path"),
-                "page": capture.get("page"),
-                "total": capture.get("total"),
-                "location": capture.get("location"),
-                "total_location": capture.get("total_location"),
-            },
-            "created_at": created_at,
-            "updated_at": utc_now_iso(),
-            "status": "error",
-            "pass1": None,
-            "pass2": None,
-            "final": None,
-            "error": None,
+    progress_count = 0
+    with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
+        future_to_capture_id = {
+            executor.submit(
+                process_capture,
+                capture,
+                book_dir=book_dir,
+                canonical_dir=canonical_dir,
+                model=args.model,
+                qa_model=args.qa_model,
+                max_retries=args.max_retries,
+                max_output_tokens=args.max_output_tokens,
+                force=args.force,
+            ): str(capture["capture_id"])
+            for capture in selected_captures
         }
 
-        try:
-            start_pass1 = time.time()
-            pass1_result, pass1_attempts = retry_call(
-                f"{capture_id} pass1",
-                args.max_retries,
-                lambda: ocr_client.pass1(
-                    model=args.model,
-                    image_data_url=image_data_url,
-                    max_output_tokens=args.max_output_tokens,
-                ),
-            )
-            pass1_duration_ms = int((time.time() - start_pass1) * 1000)
+        for future in as_completed(future_to_capture_id):
+            capture_id = future_to_capture_id[future]
+            try:
+                worker_result = future.result()
+            except Exception as exc:
+                failed_count += 1
+                progress_count += 1
+                print(f"[{capture_id}] failed: unexpected worker crash: {exc}")
+                print(f"Progress: {progress_count}/{len(selected_captures)} captures finished")
+                continue
 
-            start_pass2 = time.time()
-            pass2_result, pass2_attempts = retry_call(
-                f"{capture_id} pass2",
-                args.max_retries,
-                lambda: ocr_client.pass2(
-                    model=args.qa_model,
-                    image_data_url=image_data_url,
-                    draft_text=pass1_result["text"],
-                    max_output_tokens=args.max_output_tokens,
-                ),
-            )
-            pass2_duration_ms = int((time.time() - start_pass2) * 1000)
+            canonical_result = worker_result.get("result_payload")
+            if isinstance(canonical_result, dict):
+                canonical_results[capture_id] = canonical_result
+            else:
+                canonical_results[capture_id] = {}
 
-            result_payload["pass1"] = {
-                "model": args.model,
-                "attempts": pass1_attempts,
-                "duration_ms": pass1_duration_ms,
-                "result": pass1_result,
-            }
-            result_payload["pass2"] = {
-                "model": args.qa_model,
-                "attempts": pass2_attempts,
-                "duration_ms": pass2_duration_ms,
-                "result": pass2_result,
-            }
-            result_payload["final"] = pass2_result
-            result_payload["status"] = "completed"
-            result_payload["updated_at"] = utc_now_iso()
+            if worker_result.get("status") == "completed":
+                completed_count += 1
+                if worker_result.get("was_resumed"):
+                    resumed_count += 1
+            else:
+                failed_count += 1
 
-            write_json(canonical_path, result_payload)
-            canonical_results[capture_id] = result_payload
-            completed_count += 1
-            print(
-                f"[{capture_id}] completed "
-                f"(confidence={pass2_result['confidence']:.2f}, "
-                f"uncertainties={len(pass2_result['uncertainties'])})"
-            )
-        except Exception as exc:
-            result_payload["error"] = {
-                "message": str(exc),
-                "failed_at": utc_now_iso(),
-            }
-            result_payload["updated_at"] = utc_now_iso()
-            write_json(canonical_path, result_payload)
-            canonical_results[capture_id] = result_payload
-            failed_count += 1
-            print(f"[{capture_id}] failed: {exc}")
+            progress_count += 1
+            print(f"Progress: {progress_count}/{len(selected_captures)} captures finished")
 
     capture_records: list[dict[str, Any]] = []
     for capture in selected_captures:
@@ -995,6 +1083,7 @@ def main() -> int:
         "options": {
             "start_at": args.start_at,
             "max_pages": args.max_pages,
+            "concurrency": args.concurrency,
             "force": args.force,
             "max_retries": args.max_retries,
             "max_output_tokens": args.max_output_tokens,

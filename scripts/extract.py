@@ -6,6 +6,7 @@ restores your reading position when done.
 Usage:
     python scripts/extract.py [--seconds 1] [--asin B00FO74WXA] [--pages 0]
                               [--start-page 1] [--start-location 1]
+                              [--capture-pages 50-55,114,140]
                               [--no-restart] [--no-metadata]
                               [--include-end-matter] [--refresh-toc]
                               [--no-restore-position] [--overwrite-existing]
@@ -45,6 +46,8 @@ GO_TO_PAGE_INPUT_SELECTOR = 'ion-modal input[placeholder="page number"]'
 GO_TO_PAGE_BUTTON_SELECTOR = 'ion-modal ion-button[item-i-d="go-to-modal-go-button"]'
 NEXT_PAGE_BUTTON_SELECTOR = "#kr-chevron-right"
 NEXT_PAGE_CONTAINER_SELECTOR = ".kr-chevron-container-right"
+PREVIOUS_PAGE_BUTTON_SELECTOR = "#kr-chevron-left"
+PREVIOUS_PAGE_CONTAINER_SELECTOR = ".kr-chevron-container-left"
 FOOTER_TEXT_SELECTORS = (
     'ion-title[item-i-d="reader-footer-title"] .text-div',
     "ion-footer ion-title",
@@ -657,6 +660,48 @@ def _coerce_positive_int(value):
     return parsed if parsed > 0 else None
 
 
+def parse_capture_pages_spec(spec):
+    """Parse comma-separated page tokens (single values and inclusive ranges)."""
+    if spec is None:
+        return []
+
+    tokens = [token.strip() for token in str(spec).split(",")]
+    if not tokens or any(not token for token in tokens):
+        raise ValueError("empty token in --capture-pages specification")
+
+    pages = []
+    seen = set()
+
+    for token in tokens:
+        range_match = re.fullmatch(r"(\d+)\s*-\s*(\d+)", token)
+        if range_match:
+            start = int(range_match.group(1))
+            end = int(range_match.group(2))
+            if start < 1 or end < 1:
+                raise ValueError(f"range values must be >= 1: {token}")
+            if end < start:
+                raise ValueError(f"range end must be >= start: {token}")
+            for value in range(start, end + 1):
+                if value not in seen:
+                    seen.add(value)
+                    pages.append(value)
+            continue
+
+        single_match = re.fullmatch(r"\d+", token)
+        if single_match:
+            value = int(token)
+            if value < 1:
+                raise ValueError(f"page values must be >= 1: {token}")
+            if value not in seen:
+                seen.add(value)
+                pages.append(value)
+            continue
+
+        raise ValueError(f"invalid token in --capture-pages: {token}")
+
+    return pages
+
+
 def load_toc_entries_from_file(toc_path):
     """Load normalized TOC entries from a previous toc.json file."""
     try:
@@ -792,6 +837,20 @@ def click_next_button(page):
             if not next_control or not next_control.is_visible():
                 continue
             next_control.click()
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def click_previous_button(page):
+    """Click the previous-page button or fallback container if available."""
+    for selector in (PREVIOUS_PAGE_BUTTON_SELECTOR, PREVIOUS_PAGE_CONTAINER_SELECTOR):
+        try:
+            previous_control = page.query_selector(selector)
+            if not previous_control or not previous_control.is_visible():
+                continue
+            previous_control.click()
             return True
         except Exception:
             continue
@@ -1026,6 +1085,18 @@ def scan_canonical_pages_manifest_entries(screenshots_dir):
     return entries, ignored_noncanonical_count
 
 
+def infer_total_pages_from_existing_captures(screenshots_dir):
+    """Infer total page count from existing canonical page-* filenames."""
+    totals = []
+    for screenshot_path in screenshots_dir.glob("page-*-of-*.png"):
+        parsed = parse_canonical_capture_filename(screenshot_path.name)
+        if parsed and isinstance(parsed.get("total"), int):
+            totals.append(parsed["total"])
+    if not totals:
+        return None
+    return max(totals)
+
+
 def build_pages_manifest_payload(
     target_asin,
     captured_at,
@@ -1141,29 +1212,8 @@ def get_content_signature(page):
     return None
 
 
-def save_page_screenshot(
-    page,
-    screenshots_dir,
-    overwrite_existing=False,
-    prefer_location=False,
-    current=None,
-    total=None,
-    current_location=None,
-    total_location=None,
-):
-    """Save current content to canonical filename; skip/overwrite existing as configured."""
-    filename = build_canonical_capture_filename(
-        current=current,
-        total=total,
-        current_location=current_location,
-        total_location=total_location,
-        prefer_location=prefer_location,
-    )
-    if not filename:
-        print("Info: skipping capture because page/location is unknown.")
-        return "skipped_unknown", None
-
-    screenshot_path = screenshots_dir / filename
+def capture_current_view_to_path(page, screenshot_path, overwrite_existing=False):
+    """Capture current reader content into a specific path with overwrite controls."""
     already_exists = screenshot_path.exists()
     if already_exists and not overwrite_existing:
         print(f"Info: skipping existing screenshot: {screenshot_path}")
@@ -1172,7 +1222,9 @@ def save_page_screenshot(
     capture_path = screenshot_path
     should_overwrite = already_exists and overwrite_existing
     if should_overwrite:
-        capture_path = screenshot_path.with_name(f"{screenshot_path.name}.tmp")
+        capture_path = screenshot_path.with_name(
+            f"{screenshot_path.stem}.tmp{screenshot_path.suffix}"
+        )
 
     had_content_candidate = False
     for _selector, locator in iter_capture_locators(page):
@@ -1202,11 +1254,168 @@ def save_page_screenshot(
     return "new", screenshot_path
 
 
+def save_page_screenshot(
+    page,
+    screenshots_dir,
+    overwrite_existing=False,
+    prefer_location=False,
+    current=None,
+    total=None,
+    current_location=None,
+    total_location=None,
+):
+    """Save current content to canonical filename; skip/overwrite existing as configured."""
+    filename = build_canonical_capture_filename(
+        current=current,
+        total=total,
+        current_location=current_location,
+        total_location=total_location,
+        prefer_location=prefer_location,
+    )
+    if not filename:
+        print("Info: skipping capture because page/location is unknown.")
+        return "skipped_unknown", None
+
+    screenshot_path = screenshots_dir / filename
+    return capture_current_view_to_path(
+        page,
+        screenshot_path,
+        overwrite_existing=overwrite_existing,
+    )
+
+
+def save_explicit_page_capture(
+    page,
+    screenshots_dir,
+    target_page,
+    total_pages,
+    overwrite_existing=False,
+):
+    """Save current content using an explicit page-* filename target."""
+    if not isinstance(target_page, int) or target_page < 1:
+        print(f"Warning: invalid requested page number: {target_page}.")
+        return "skipped_unknown", None
+    if not isinstance(total_pages, int) or total_pages < 1:
+        print(
+            "Warning: could not determine total page count for explicit page capture; "
+            f"skipping page {target_page}."
+        )
+        return "skipped_unknown", None
+
+    filename = f"page-{target_page:04d}-of-{total_pages:04d}.png"
+    screenshot_path = screenshots_dir / filename
+    return capture_current_view_to_path(
+        page,
+        screenshot_path,
+        overwrite_existing=overwrite_existing,
+    )
+
+
 def update_capture_stats(capture_stats, capture_status):
     """Increment capture counters for manifest summary/debug output."""
     status_key = f"{capture_status}_count"
     if status_key in capture_stats:
         capture_stats[status_key] += 1
+
+
+def capture_requested_pages(
+    page,
+    target_pages,
+    screenshots_dir,
+    overwrite_existing,
+    capture_stats,
+    save_pages_manifest_callback,
+):
+    """Capture an explicit list of pages via Go to Page navigation."""
+    failed_pages = []
+    known_total = infer_total_pages_from_existing_captures(screenshots_dir)
+
+    for idx, target_page in enumerate(target_pages, start=1):
+        print(f"Requested page capture {idx}/{len(target_pages)}: page {target_page}")
+
+        if dismiss_possible_alert(page):
+            print("Info: dismissed blocking alert.")
+
+        if not go_to_page(page, target_page):
+            print(f"Warning: could not navigate to requested page {target_page}.")
+            failed_pages.append(target_page)
+            continue
+
+        current, total, current_location, total_location = get_page_info_with_retry(
+            page, attempts=10, wait_ms=150
+        )
+        if isinstance(total, int) and total > 0:
+            known_total = total
+
+        # Kindle can land one page off after Go to Page; nudge to requested page.
+        adjustment_attempts = 0
+        while adjustment_attempts < 3 and isinstance(current, int) and current != target_page:
+            adjustment_attempts += 1
+            moved = False
+            if current < target_page:
+                moved = click_next_button(page)
+                if not moved:
+                    try:
+                        page.keyboard.press("ArrowRight")
+                        moved = True
+                    except Exception:
+                        moved = False
+            else:
+                moved = click_previous_button(page)
+                if not moved:
+                    try:
+                        page.keyboard.press("ArrowLeft")
+                        moved = True
+                    except Exception:
+                        moved = False
+
+            if not moved:
+                break
+
+            page.wait_for_timeout(700)
+            current, total, current_location, total_location = get_page_info_with_retry(
+                page, attempts=6, wait_ms=120
+            )
+            if isinstance(total, int) and total > 0:
+                known_total = total
+
+        if isinstance(current, int) and current != target_page and abs(current - target_page) <= 2:
+            if go_to_page(page, target_page):
+                current, total, current_location, total_location = get_page_info_with_retry(
+                    page, attempts=8, wait_ms=150
+                )
+                if isinstance(total, int) and total > 0:
+                    known_total = total
+
+        if current_location is not None and current is None:
+            print(
+                "Warning: footer is location-only for this page; skipping requested page "
+                f"{target_page}."
+            )
+            failed_pages.append(target_page)
+            continue
+
+        if current is not None and current != target_page:
+            print(
+                f"Warning: requested page {target_page} resolved to page "
+                f"{current}. Saving capture using requested page filename."
+            )
+
+        effective_total = total if isinstance(total, int) and total > 0 else known_total
+        capture_status, _screenshot_path = save_explicit_page_capture(
+            page,
+            screenshots_dir,
+            target_page=target_page,
+            total_pages=effective_total,
+            overwrite_existing=overwrite_existing,
+        )
+        update_capture_stats(capture_stats, capture_status)
+        save_pages_manifest_callback()
+
+        if capture_status == "skipped_unknown":
+            failed_pages.append(target_page)
+
+    return failed_pages
 
 
 def main():
@@ -1231,6 +1440,12 @@ def main():
         type=int,
         default=None,
         help="Jump to a specific location before capture starts",
+    )
+    parser.add_argument(
+        "--capture-pages",
+        type=str,
+        default=None,
+        help="Capture explicit pages via Go to Page (e.g. 50-55,114,140)",
     )
     parser.add_argument(
         "--no-restart",
@@ -1263,12 +1478,22 @@ def main():
         help="Overwrite existing canonical screenshots instead of skipping them",
     )
     args = parser.parse_args()
+    try:
+        requested_capture_pages = parse_capture_pages_spec(args.capture_pages)
+    except ValueError as exc:
+        parser.error(f"--capture-pages {exc}")
     if args.start_page is not None and args.start_page < 1:
         parser.error("--start-page must be >= 1")
     if args.start_location is not None and args.start_location < 1:
         parser.error("--start-location must be >= 1")
     if args.start_page is not None and args.start_location is not None:
         parser.error("--start-page and --start-location are mutually exclusive")
+    if requested_capture_pages and args.start_page is not None:
+        parser.error("--capture-pages and --start-page are mutually exclusive")
+    if requested_capture_pages and args.start_location is not None:
+        parser.error("--capture-pages and --start-location are mutually exclusive")
+    if requested_capture_pages and args.pages:
+        parser.error("--capture-pages cannot be combined with --pages")
 
     user_data_dir = Path.home() / ".kindle-reader-profile"
     book_dir = Path.cwd() / "books" / sanitize_slug(args.asin)
@@ -1341,9 +1566,16 @@ def main():
             page.wait_for_url("**/read.amazon.com/**", timeout=300_000)  # 5 min
             print("Login detected! Waiting for book to load...")
 
-        # Wait for the reader to be ready
-        if not wait_for_next_control(page, timeout_ms=30_000):
-            raise TimeoutError("Next-page controls not visible within 30s.")
+        # Wait for the reader to be ready.
+        has_next_control = wait_for_next_control(page, timeout_ms=30_000)
+        if not has_next_control:
+            if requested_capture_pages:
+                print(
+                    "Info: next-page controls not visible within 30s; continuing because "
+                    "--capture-pages uses Go to Page navigation."
+                )
+            else:
+                raise TimeoutError("Next-page controls not visible within 30s.")
         if dismiss_possible_alert(page):
             print("Info: dismissed blocking alert.")
         if ensure_fixed_header_ui(page):
@@ -1466,6 +1698,101 @@ def main():
             if not metadata["sources"]["yj_metadata"]:
                 print("Warning: YJmetadata.jsonp response was not captured.")
             save_metadata(metadata_path, metadata)
+
+        if requested_capture_pages:
+            print(
+                "Requested page capture mode enabled: "
+                f"{','.join(str(page_number) for page_number in requested_capture_pages)}"
+            )
+            print(f"Saving page screenshots to {screenshots_dir}")
+            if args.overwrite_existing:
+                print("Overwrite mode enabled: existing screenshots will be replaced.")
+            else:
+                print(
+                    "Idempotent mode enabled: existing screenshots are skipped "
+                    "(use --overwrite-existing to replace)."
+                )
+
+            pages_manifest_captured_at = datetime.now(UTC).isoformat()
+            pages_manifest_warning_printed = False
+            capture_stats = {
+                "new_count": 0,
+                "overwritten_count": 0,
+                "skipped_existing_count": 0,
+                "skipped_unknown_count": 0,
+            }
+
+            def save_pages_manifest_best_effort():
+                nonlocal pages_manifest_warning_printed
+                entries, ignored_noncanonical_count = scan_canonical_pages_manifest_entries(
+                    screenshots_dir
+                )
+                payload = build_pages_manifest_payload(
+                    args.asin,
+                    pages_manifest_captured_at,
+                    entries,
+                    capture_stats=capture_stats,
+                    ignored_noncanonical_count=ignored_noncanonical_count,
+                )
+                try:
+                    save_pages_manifest(pages_manifest_path, payload)
+                except Exception:
+                    if not pages_manifest_warning_printed:
+                        print("Warning: failed to write pages.json manifest.")
+                        pages_manifest_warning_printed = True
+
+            failed_pages = []
+            try:
+                failed_pages = capture_requested_pages(
+                    page,
+                    requested_capture_pages,
+                    screenshots_dir,
+                    args.overwrite_existing,
+                    capture_stats,
+                    save_pages_manifest_best_effort,
+                )
+            except KeyboardInterrupt:
+                print("\nStopped during requested-page capture.")
+            finally:
+                save_pages_manifest_best_effort()
+                print(
+                    "Capture summary: "
+                    f"new={capture_stats['new_count']} "
+                    f"overwritten={capture_stats['overwritten_count']} "
+                    f"skipped_existing={capture_stats['skipped_existing_count']} "
+                    f"skipped_unknown={capture_stats['skipped_unknown_count']}"
+                )
+                if failed_pages:
+                    print(
+                        "Requested pages not captured: "
+                        + ", ".join(str(page_number) for page_number in failed_pages)
+                    )
+
+                if args.no_restore_position:
+                    print("Info: start position restore disabled (--no-restore-position).")
+                else:
+                    print("Info: restoring start position...")
+                    try:
+                        restore_start_position(page, initial_page, initial_location)
+                    except KeyboardInterrupt:
+                        print(
+                            "Info: interrupted while restoring start position; continuing shutdown."
+                        )
+                    except Exception:
+                        print("Warning: unexpected error while restoring start position.")
+
+                print("Closing in 5 seconds (press Ctrl+C again to close immediately)...")
+                try:
+                    time.sleep(5)
+                except KeyboardInterrupt:
+                    pass
+                try:
+                    context.close()
+                except KeyboardInterrupt:
+                    print("Info: interrupted while closing browser context.")
+                except Exception:
+                    print("Warning: browser context close raised an unexpected error.")
+            return
 
         # Apply requested startup navigation.
         if args.start_page is not None:
