@@ -132,6 +132,17 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 - Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)
 - Best-effort: restores your reading position when done
 
+## `pages.json` diagnostics
+
+`pages.json` is written incrementally during extraction and now includes:
+
+- `coverage`: capture completeness diagnostics (`status`, `expected_total_pages`, `missing_pages`, and unresolved candidate intersections)
+- `anomalies`: cumulative event log for navigation irregularities across runs
+  - `auto_turn_delta`: emitted when next-page iteration observes page deltas other than `+1`
+  - `capture_pages_resolution`: emitted when `--capture-pages` cannot resolve exactly (mismatch, location-only, navigation failure, skipped unknown)
+
+`coverage.unresolved_page_candidates` indicates pages affected by observed navigation anomalies. Treat these as "unverified" missing pages, not guaranteed hard gaps.
+
 ## Transcript outputs
 
 The transcription script writes:
@@ -148,6 +159,7 @@ The transcription script writes:
 - `metadata.json` stores normalized fields only (`asin`, `title`, `authors`, `captured_at`, `sources`)
 - Capture is idempotent by default: existing nav-keyed files are skipped unless `--overwrite-existing` is set
 - Kindle `Go to Page` vs `Go to Location` is context-dependent; for `--start-location`, the script may prime via TOC-first-entry fallback before retrying location navigation, and the resolved visible location may differ from the requested value
+- In `--capture-pages` mode, screenshots are only saved when Kindle resolves exactly to the requested page; mismatches are logged as anomalies and skipped
 - Pages with unknown footer navigation are skipped (no unstable `unknown` files are written)
 - Transcription resumes from saved per-capture canonical results and auto re-runs when source image path/mtime/size changes (or use `--force`)
 - Press `Ctrl+C` to stop at any time

@@ -1219,12 +1219,118 @@ def infer_total_pages_from_existing_captures(screenshots_dir):
     return max(totals)
 
 
+def normalize_positive_int_list(values):
+    """Normalize a list-like input into sorted unique positive integers."""
+    if not isinstance(values, list):
+        return []
+
+    normalized = set()
+    for value in values:
+        parsed = _coerce_positive_int(value)
+        if parsed is not None:
+            normalized.add(parsed)
+    return sorted(normalized)
+
+
+def load_existing_anomaly_events(pages_manifest_path):
+    """Load existing anomaly events from pages.json (best-effort)."""
+    if not pages_manifest_path.exists():
+        return []
+
+    try:
+        payload = json.loads(pages_manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    if not isinstance(payload, dict):
+        return []
+    anomalies = payload.get("anomalies")
+    if not isinstance(anomalies, dict):
+        return []
+    raw_events = anomalies.get("events")
+    if not isinstance(raw_events, list):
+        return []
+
+    events = []
+    for event in raw_events:
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def collect_unresolved_page_candidates(anomaly_events):
+    """Collect unresolved page candidate numbers from anomaly events."""
+    unresolved = set()
+    if not isinstance(anomaly_events, list):
+        return []
+    for event in anomaly_events:
+        if not isinstance(event, dict):
+            continue
+        for page_number in normalize_positive_int_list(event.get("unresolved_pages")):
+            unresolved.add(page_number)
+    return sorted(unresolved)
+
+
+def build_pages_coverage_payload(entries, anomaly_events, last_run_mode):
+    """Build page-coverage view from captures on disk + anomaly hints."""
+    captured_pages = set()
+    page_totals = set()
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        page_number = _coerce_positive_int(item.get("page"))
+        if page_number is not None:
+            captured_pages.add(page_number)
+        page_total = _coerce_positive_int(item.get("total"))
+        if page_total is not None:
+            page_totals.add(page_total)
+
+    expected_total_pages = max(page_totals) if page_totals else None
+    missing_pages = []
+    if expected_total_pages is not None:
+        missing_pages = sorted(
+            page_number
+            for page_number in range(1, expected_total_pages + 1)
+            if page_number not in captured_pages
+        )
+
+    unresolved_page_candidates = collect_unresolved_page_candidates(anomaly_events)
+    unresolved_missing_pages = []
+    if missing_pages:
+        missing_set = set(missing_pages)
+        unresolved_missing_pages = [
+            page_number for page_number in unresolved_page_candidates if page_number in missing_set
+        ]
+
+    if expected_total_pages is None:
+        status = "unknown_total"
+    elif missing_pages:
+        status = "incomplete"
+    else:
+        status = "complete"
+
+    return {
+        "status": status,
+        "last_run_mode": last_run_mode,
+        "expected_total_pages": expected_total_pages,
+        "captured_unique_page_count": len(captured_pages),
+        "missing_pages": missing_pages,
+        "missing_count": len(missing_pages),
+        "unresolved_page_candidates": unresolved_page_candidates,
+        "unresolved_page_candidate_count": len(unresolved_page_candidates),
+        "unresolved_missing_pages": unresolved_missing_pages,
+        "unresolved_missing_count": len(unresolved_missing_pages),
+    }
+
+
 def build_pages_manifest_payload(
     target_asin,
     captured_at,
     entries,
     capture_stats=None,
     ignored_noncanonical_count=0,
+    anomaly_events=None,
+    last_run_mode=None,
 ):
     """Build a canonical pages manifest snapshot."""
     page_nav_count = 0
@@ -1253,11 +1359,23 @@ def build_pages_manifest_payload(
     if isinstance(capture_stats, dict):
         summary.update(capture_stats)
 
+    normalized_events = []
+    if isinstance(anomaly_events, list):
+        for event in anomaly_events:
+            if isinstance(event, dict):
+                normalized_events.append(event)
+
     return {
         "asin": target_asin,
         "captured_at": captured_at,
         "pages": entries,
         "summary": summary,
+        "coverage": build_pages_coverage_payload(entries, normalized_events, last_run_mode),
+        "anomalies": {
+            "schema_version": 1,
+            "count": len(normalized_events),
+            "events": normalized_events,
+        },
     }
 
 
@@ -1440,6 +1558,62 @@ def update_capture_stats(capture_stats, capture_status):
         capture_stats[status_key] += 1
 
 
+def append_capture_pages_anomaly_event(
+    anomaly_events,
+    run_id,
+    request_index,
+    requested_page,
+    classification,
+    resolved_page=None,
+    resolved_location=None,
+    unresolved_pages=None,
+):
+    """Record requested-page anomaly details for manifest diagnostics."""
+    anomaly_events.append(
+        {
+            "kind": "capture_pages_resolution",
+            "run_id": run_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "request_index": request_index,
+            "requested_page": requested_page,
+            "resolved_page": resolved_page,
+            "resolved_location": resolved_location,
+            "classification": classification,
+            "unresolved_pages": normalize_positive_int_list(unresolved_pages),
+        }
+    )
+
+
+def append_auto_turn_anomaly_event(
+    anomaly_events,
+    run_id,
+    turn_index,
+    from_page,
+    to_page,
+    delta,
+    classification,
+    unresolved_pages,
+    changed_by_signature,
+    changed_by_footer_value,
+):
+    """Record auto-turn page delta anomaly details for manifest diagnostics."""
+    anomaly_events.append(
+        {
+            "kind": "auto_turn_delta",
+            "run_id": run_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "turn_index": turn_index,
+            "from_page": from_page,
+            "to_page": to_page,
+            "delta": delta,
+            "classification": classification,
+            "unresolved_pages": normalize_positive_int_list(unresolved_pages),
+            "changed_by_signature": changed_by_signature,
+            "changed_by_footer_value": changed_by_footer_value,
+        }
+    )
+
+
 def capture_requested_pages(
     page,
     target_pages,
@@ -1447,6 +1621,8 @@ def capture_requested_pages(
     overwrite_existing,
     capture_stats,
     save_pages_manifest_callback,
+    anomaly_events,
+    run_id,
 ):
     """Capture an explicit list of pages via Go to Page navigation."""
     failed_pages = []
@@ -1460,7 +1636,16 @@ def capture_requested_pages(
 
         if not go_to_page(page, target_page):
             print(f"Warning: could not navigate to requested page {target_page}.")
+            append_capture_pages_anomaly_event(
+                anomaly_events,
+                run_id,
+                request_index=idx,
+                requested_page=target_page,
+                classification="navigation_failed",
+                unresolved_pages=[target_page],
+            )
             failed_pages.append(target_page)
+            save_pages_manifest_callback()
             continue
 
         current, total, current_location, total_location = get_page_info_with_retry(
@@ -1514,14 +1699,55 @@ def capture_requested_pages(
                 "Warning: footer is location-only for this page; skipping requested page "
                 f"{target_page}."
             )
+            append_capture_pages_anomaly_event(
+                anomaly_events,
+                run_id,
+                request_index=idx,
+                requested_page=target_page,
+                classification="location_only",
+                resolved_location=current_location,
+                unresolved_pages=[target_page],
+            )
             failed_pages.append(target_page)
+            save_pages_manifest_callback()
             continue
 
-        if current is not None and current != target_page:
+        if current is None:
             print(
-                f"Warning: requested page {target_page} resolved to page "
-                f"{current}. Saving capture using requested page filename."
+                "Warning: could not confirm resolved page number for requested page "
+                f"{target_page}; skipping capture to avoid mislabeled output."
             )
+            append_capture_pages_anomaly_event(
+                anomaly_events,
+                run_id,
+                request_index=idx,
+                requested_page=target_page,
+                classification="capture_skipped_unknown",
+                resolved_location=current_location,
+                unresolved_pages=[target_page],
+            )
+            failed_pages.append(target_page)
+            save_pages_manifest_callback()
+            continue
+
+        if current != target_page:
+            print(
+                f"Warning: requested page {target_page} resolved to page {current}; "
+                "skipping capture to avoid mislabeled output."
+            )
+            append_capture_pages_anomaly_event(
+                anomaly_events,
+                run_id,
+                request_index=idx,
+                requested_page=target_page,
+                classification="resolved_mismatch",
+                resolved_page=current,
+                resolved_location=current_location,
+                unresolved_pages=[target_page],
+            )
+            failed_pages.append(target_page)
+            save_pages_manifest_callback()
+            continue
 
         effective_total = total if isinstance(total, int) and total > 0 else known_total
         capture_status, _screenshot_path = save_explicit_page_capture(
@@ -1535,7 +1761,18 @@ def capture_requested_pages(
         save_pages_manifest_callback()
 
         if capture_status == "skipped_unknown":
+            append_capture_pages_anomaly_event(
+                anomaly_events,
+                run_id,
+                request_index=idx,
+                requested_page=target_page,
+                classification="capture_skipped_unknown",
+                resolved_page=current,
+                resolved_location=current_location,
+                unresolved_pages=[target_page],
+            )
             failed_pages.append(target_page)
+            save_pages_manifest_callback()
 
     return failed_pages
 
@@ -1821,6 +2058,8 @@ def main():
                 print("Warning: YJmetadata.jsonp response was not captured.")
             save_metadata(metadata_path, metadata)
 
+        existing_anomaly_events = load_existing_anomaly_events(pages_manifest_path)
+
         if requested_capture_pages:
             print(
                 "Requested page capture mode enabled: "
@@ -1836,7 +2075,9 @@ def main():
                 )
 
             pages_manifest_captured_at = datetime.now(UTC).isoformat()
+            run_id = pages_manifest_captured_at
             pages_manifest_warning_printed = False
+            new_anomaly_events = []
             capture_stats = {
                 "new_count": 0,
                 "overwritten_count": 0,
@@ -1855,6 +2096,8 @@ def main():
                     entries,
                     capture_stats=capture_stats,
                     ignored_noncanonical_count=ignored_noncanonical_count,
+                    anomaly_events=existing_anomaly_events + new_anomaly_events,
+                    last_run_mode="capture_pages",
                 )
                 try:
                     save_pages_manifest(pages_manifest_path, payload)
@@ -1872,6 +2115,8 @@ def main():
                     args.overwrite_existing,
                     capture_stats,
                     save_pages_manifest_best_effort,
+                    new_anomaly_events,
+                    run_id,
                 )
             except KeyboardInterrupt:
                 print("\nStopped during requested-page capture.")
@@ -1999,8 +2244,11 @@ def main():
         print(f"Auto-advancing every {args.seconds}s. Press Ctrl+C to stop.\n")
 
         pages_turned = 0
+        turn_attempts = 0
         pages_manifest_captured_at = datetime.now(UTC).isoformat()
+        run_id = pages_manifest_captured_at
         pages_manifest_warning_printed = False
+        new_anomaly_events = []
         capture_stats = {
             "new_count": 0,
             "overwritten_count": 0,
@@ -2019,6 +2267,8 @@ def main():
                 entries,
                 capture_stats=capture_stats,
                 ignored_noncanonical_count=ignored_noncanonical_count,
+                anomaly_events=existing_anomaly_events + new_anomaly_events,
+                last_run_mode="auto_turn",
             )
             try:
                 save_pages_manifest(pages_manifest_path, payload)
@@ -2113,6 +2363,7 @@ def main():
                 previous_signature = get_content_signature(page)
                 time.sleep(args.seconds)
 
+                turn_attempts += 1
                 if not click_next_button(page):
                     print("Next-page controls not found — likely at the end of the book.")
                     break
@@ -2140,6 +2391,45 @@ def main():
                     changed_by_footer_value = changed_by_location
                 else:
                     changed_by_footer_value = changed_by_page_number or changed_by_location
+
+                if isinstance(previous_page, int) and isinstance(current, int):
+                    page_delta = current - previous_page
+                    if page_delta != 1:
+                        if page_delta == 0:
+                            classification = "repeat"
+                            unresolved_pages = []
+                        elif page_delta > 1:
+                            classification = "jump_forward"
+                            unresolved_pages = list(range(previous_page + 1, current))
+                        else:
+                            classification = "jump_backward"
+                            unresolved_pages = []
+
+                        append_auto_turn_anomaly_event(
+                            new_anomaly_events,
+                            run_id=run_id,
+                            turn_index=turn_attempts,
+                            from_page=previous_page,
+                            to_page=current,
+                            delta=page_delta,
+                            classification=classification,
+                            unresolved_pages=unresolved_pages,
+                            changed_by_signature=changed_by_signature,
+                            changed_by_footer_value=changed_by_footer_value,
+                        )
+
+                        if unresolved_pages:
+                            print(
+                                "Warning: non-sequential page jump "
+                                f"{previous_page} -> {current}; unresolved page candidates: "
+                                + ", ".join(str(page_number) for page_number in unresolved_pages)
+                            )
+                        else:
+                            print(
+                                f"Warning: non-sequential page turn {previous_page} -> {current} "
+                                f"({classification})."
+                            )
+
                 if changed_by_signature or changed_by_footer_value:
                     pages_turned += 1
                 if not changed_by_signature:
