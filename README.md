@@ -130,7 +130,7 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 - Captures normalized metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
 - Transcribes screenshots with OpenAI (2-pass OCR + QA) into `./books/<asin>/transcripts/`
 - Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)
-- Restores your reading position when done
+- Best-effort: restores your reading position when done
 
 ## Transcript outputs
 
@@ -147,6 +147,7 @@ The transcription script writes:
 - Applies Single Column + Amazon Ember font for consistent captures
 - `metadata.json` stores normalized fields only (`asin`, `title`, `authors`, `captured_at`, `sources`)
 - Capture is idempotent by default: existing nav-keyed files are skipped unless `--overwrite-existing` is set
+- Kindle `Go to Page` vs `Go to Location` is context-dependent; for `--start-location`, the script may prime via TOC-first-entry fallback before retrying location navigation, and the resolved visible location may differ from the requested value
 - Pages with unknown footer navigation are skipped (no unstable `unknown` files are written)
 - Transcription resumes from saved per-capture canonical results and auto re-runs when source image path/mtime/size changes (or use `--force`)
 - Press `Ctrl+C` to stop at any time

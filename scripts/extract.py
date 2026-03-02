@@ -296,11 +296,88 @@ def go_to_cover(page):
         return False
 
 
-def go_to_page(page, page_number):
-    """Best-effort navigation to a specific page using the reader menu."""
-    if page_number is None or page_number < 1:
+def prime_location_mode_via_toc_first_entry(page):
+    """Prime reader context for Go to Location via the first TOC entry."""
+    dismiss_modal_if_open(page)
+    page.wait_for_timeout(200)
+
+    toc_opened = False
+    for _ in range(3):
+        if open_toc_menu(page):
+            toc_opened = True
+            break
+        dismiss_modal_if_open(page)
+        page.wait_for_timeout(250)
+
+    if not toc_opened:
         return False
 
+    try:
+        toc_items = page.locator(TOC_ITEM_SELECTOR)
+        try:
+            toc_items.first.wait_for(state="visible", timeout=5000)
+        except Exception:
+            pass
+
+        scrollable = page.locator(TOC_SCROLLABLE_SELECTOR).first
+        if scrollable.count() > 0:
+            try:
+                scrollable.evaluate("(el) => { el.scrollTop = 0; }")
+                page.wait_for_timeout(200)
+            except Exception:
+                pass
+
+        # Let the TOC fully settle at top before selecting the first entry.
+        page.wait_for_timeout(3000)
+
+        first_toc_button = toc_items.first.locator(TOC_BUTTON_SELECTOR).first
+        if first_toc_button.count() == 0:
+            first_toc_button = page.locator(TOC_BUTTON_SELECTOR).first
+        if first_toc_button.count() == 0:
+            if not close_toc_menu(page):
+                print("Warning: TOC did not fully close after missing first TOC entry.")
+            return False
+
+        clicked_first = False
+        try:
+            first_toc_button.scroll_into_view_if_needed()
+            if first_toc_button.is_visible():
+                first_toc_button.click()
+                clicked_first = True
+        except Exception:
+            clicked_first = False
+
+        if not clicked_first:
+            try:
+                first_toc_item = toc_items.first
+                if first_toc_item.count() > 0 and first_toc_item.is_visible():
+                    first_toc_item.click()
+                    clicked_first = True
+            except Exception:
+                clicked_first = False
+
+        if not clicked_first:
+            if not close_toc_menu(page):
+                print("Warning: TOC did not fully close after first-entry click failure.")
+            return False
+
+        page.wait_for_timeout(900)
+        if not close_toc_menu(page):
+            print("Warning: TOC did not fully close after first-entry TOC navigation.")
+            dismiss_modal_if_open(page)
+            page.wait_for_timeout(150)
+            if not close_toc_menu(page):
+                print("Warning: aborting location-mode priming because TOC is still open.")
+                return False
+        return True
+    except Exception:
+        if not close_toc_menu(page):
+            print("Warning: TOC did not fully close after location-mode TOC priming failure.")
+        return False
+
+
+def open_navigation_menu(page):
+    """Open reader navigation menu and wait for go-to items."""
     try:
         reveal_top_chrome(page, NAVIGATION_MENU_TEST_ID)
         menu_btn = page.get_by_test_id(NAVIGATION_MENU_TEST_ID).first
@@ -312,15 +389,74 @@ def go_to_page(page, page_number):
                 return False
             fallback_menu.click()
         page.wait_for_timeout(600)
+        return True
+    except Exception:
+        return False
 
-        go_to_page_item = page.locator(GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Page").first
-        go_to_page_item.wait_for(state="visible", timeout=5000)
-        go_to_page_item.click()
-        page.wait_for_timeout(250)
 
-        go_to_page_input = page.locator(GO_TO_PAGE_INPUT_SELECTOR).first
+def click_go_to_menu_item(page, preferred_labels):
+    """Click the first visible Go To menu item label."""
+    targets = [str(label).strip().lower() for label in preferred_labels if str(label).strip()]
+    if not targets:
+        return False
+
+    try:
+        menu_items = page.locator(GO_TO_PAGE_MENU_ITEM_SELECTOR)
+        item_count = menu_items.count()
+        for idx in range(item_count):
+            menu_item = menu_items.nth(idx)
+            raw_text = menu_item.text_content()
+            normalized = " ".join((raw_text or "").split()).lower()
+            if not normalized:
+                continue
+            if not any(target in normalized for target in targets):
+                continue
+            if not menu_item.is_visible():
+                continue
+            menu_item.click()
+            page.wait_for_timeout(250)
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def dismiss_modal_if_open(page):
+    """Best-effort close for open modals/menus after navigation failures."""
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(150)
+    except Exception:
+        pass
+
+
+def go_to_page(page, page_number):
+    """Best-effort navigation to a specific page using the reader menu."""
+    if page_number is None or page_number < 1:
+        return False
+
+    try:
+        if not open_navigation_menu(page):
+            return False
+        if not click_go_to_menu_item(page, ("Go to Page",)):
+            dismiss_modal_if_open(page)
+            return False
+
+        go_to_page_input = None
+        for selector in (
+            GO_TO_PAGE_INPUT_SELECTOR,
+            "ion-modal input",
+        ):
+            candidate = page.locator(selector).first
+            if candidate.count() > 0:
+                go_to_page_input = candidate
+                break
         go_to_page_button = page.locator(GO_TO_PAGE_BUTTON_SELECTOR).first
-        if go_to_page_input.count() == 0 or go_to_page_button.count() == 0:
+        if go_to_page_button.count() == 0:
+            go_to_page_button = page.locator("ion-modal ion-button", has_text="Go").first
+
+        if go_to_page_input is None or go_to_page_button.count() == 0:
+            dismiss_modal_if_open(page)
             return False
 
         go_to_page_input.fill(str(page_number))
@@ -328,6 +464,7 @@ def go_to_page(page, page_number):
         page.wait_for_timeout(900)
         return True
     except Exception:
+        dismiss_modal_if_open(page)
         return False
 
 
@@ -337,32 +474,15 @@ def go_to_location(page, location_number):
         return False
 
     try:
-        reveal_top_chrome(page, NAVIGATION_MENU_TEST_ID)
-        menu_btn = page.get_by_test_id(NAVIGATION_MENU_TEST_ID).first
-        if menu_btn.count() > 0 and menu_btn.is_visible():
-            menu_btn.click()
-        else:
-            fallback_menu = page.get_by_label(READER_MENU_LABEL).first
-            if fallback_menu.count() == 0:
-                return False
-            fallback_menu.click()
-        page.wait_for_timeout(600)
-
-        go_to_location_item = page.locator(
-            GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Location"
-        ).first
-        if go_to_location_item.count() == 0:
-            go_to_location_item = page.locator(
-                GO_TO_PAGE_MENU_ITEM_SELECTOR, has_text="Go to Page"
-            ).first
-        go_to_location_item.wait_for(state="visible", timeout=5000)
-        go_to_location_item.click()
-        page.wait_for_timeout(250)
+        if not open_navigation_menu(page):
+            return False
+        if not click_go_to_menu_item(page, ("Go to Location",)):
+            dismiss_modal_if_open(page)
+            return False
 
         go_to_location_input = None
         for selector in (
             'ion-modal input[placeholder*="location" i]',
-            GO_TO_PAGE_INPUT_SELECTOR,
             "ion-modal input",
         ):
             candidate = page.locator(selector).first
@@ -375,6 +495,7 @@ def go_to_location(page, location_number):
             go_to_location_button = page.locator("ion-modal ion-button", has_text="Go").first
 
         if go_to_location_input is None or go_to_location_button.count() == 0:
+            dismiss_modal_if_open(page)
             return False
 
         go_to_location_input.fill(str(location_number))
@@ -382,6 +503,7 @@ def go_to_location(page, location_number):
         page.wait_for_timeout(900)
         return True
     except Exception:
+        dismiss_modal_if_open(page)
         return False
 
 
@@ -1805,8 +1927,38 @@ def main():
                 )
         elif args.start_location is not None:
             print(f"Navigating to start location {args.start_location}...")
-            if go_to_location(page, args.start_location):
-                print(f"Info: jumped to start location {args.start_location}.")
+            location_jump_succeeded = go_to_location(page, args.start_location)
+            if not location_jump_succeeded:
+                print(
+                    "Info: Go to Location is unavailable in the current context; "
+                    "trying TOC top-first-entry fallback."
+                )
+                if prime_location_mode_via_toc_first_entry(page):
+                    location_jump_succeeded = go_to_location(page, args.start_location)
+                else:
+                    print("Warning: could not prime location mode via TOC.")
+
+            if location_jump_succeeded:
+                (
+                    resolved_page,
+                    resolved_total,
+                    resolved_location,
+                    resolved_total_location,
+                ) = get_page_info_with_retry(page, attempts=8, wait_ms=120)
+                if resolved_location is not None and resolved_total_location is not None:
+                    print(
+                        "Info: requested start location "
+                        f"{args.start_location} resolved to location "
+                        f"{resolved_location} of {resolved_total_location}."
+                    )
+                elif resolved_page is not None and resolved_total is not None:
+                    print(
+                        "Info: requested start location "
+                        f"{args.start_location} landed on page "
+                        f"{resolved_page} of {resolved_total}."
+                    )
+                else:
+                    print(f"Info: jumped to start location {args.start_location}.")
             else:
                 raise SystemExit(
                     f"Error: could not navigate to start location {args.start_location}; aborting."
@@ -1820,12 +1972,10 @@ def main():
 
         current, total, current_location, total_location = get_page_info(page)
         nav_mode = "unknown"
-        if args.start_location is not None or (
-            current_location is not None and total_location is not None
-        ):
-            nav_mode = "location"
-        elif args.start_page is not None or (current is not None and total is not None):
+        if current is not None and total is not None:
             nav_mode = "page"
+        elif current_location is not None and total_location is not None:
+            nav_mode = "location"
 
         if nav_mode == "location":
             print("Info: navigation mode locked to location.")
