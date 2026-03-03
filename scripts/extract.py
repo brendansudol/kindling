@@ -241,7 +241,7 @@ def close_toc_menu(page):
     if is_toc_panel_closed(page):
         return True
 
-    for _ in range(2):
+    for _ in range(4):
         try:
             close_btn = page.locator(SIDE_MENU_CLOSE_SELECTOR).first
             if close_btn.count() > 0 and close_btn.is_visible():
@@ -270,6 +270,18 @@ def close_toc_menu(page):
                 return True
         except Exception:
             pass
+
+        # Last-resort: click reader content area to dismiss side panels.
+        for selector in ("#kr-renderer", "#reader", "body"):
+            try:
+                surface = page.locator(selector).first
+                if surface.count() > 0 and surface.is_visible():
+                    surface.click(force=True, position={"x": 24, "y": 24})
+                    page.wait_for_timeout(200)
+                    if is_toc_panel_closed(page):
+                        return True
+            except Exception:
+                continue
 
     return is_toc_panel_closed(page)
 
@@ -942,26 +954,43 @@ def is_selector_visible(page, selector):
 def wait_for_next_control(page, timeout_ms=30_000, poll_ms=100):
     """Wait until a known next-page control is visible."""
     deadline = time.time() + (timeout_ms / 1000)
+    next_recovery_at = time.time()
     while time.time() < deadline:
         if is_selector_visible(page, NEXT_PAGE_BUTTON_SELECTOR) or is_selector_visible(
             page, NEXT_PAGE_CONTAINER_SELECTOR
         ):
             return True
+
+        now = time.time()
+        if now >= next_recovery_at:
+            if is_toc_panel_open(page):
+                close_toc_menu(page)
+            else:
+                dismiss_modal_if_open(page)
+            next_recovery_at = now + 0.8
         page.wait_for_timeout(poll_ms)
     return False
 
 
 def click_next_button(page):
     """Click the next-page button or fallback container if available."""
-    for selector in (NEXT_PAGE_BUTTON_SELECTOR, NEXT_PAGE_CONTAINER_SELECTOR):
-        try:
-            next_control = page.query_selector(selector)
-            if not next_control or not next_control.is_visible():
+    for _attempt in range(2):
+        for selector in (NEXT_PAGE_BUTTON_SELECTOR, NEXT_PAGE_CONTAINER_SELECTOR):
+            try:
+                next_control = page.query_selector(selector)
+                if not next_control or not next_control.is_visible():
+                    continue
+                next_control.click()
+                return True
+            except Exception:
                 continue
-            next_control.click()
-            return True
-        except Exception:
-            continue
+
+        # Recover from TOC/modal overlap before the next click attempt.
+        if is_toc_panel_open(page):
+            close_toc_menu(page)
+        else:
+            dismiss_modal_if_open(page)
+        wait_for_next_control(page, timeout_ms=1_000, poll_ms=120)
     return False
 
 
@@ -1138,22 +1167,24 @@ def save_metadata(metadata_path, metadata):
 
 def parse_canonical_capture_filename(file_name):
     """Parse canonical nav-keyed filename into page/location metadata."""
-    page_match = re.match(r"^page-(\d+)-of-(\d+)\.png$", file_name)
+    page_match = re.match(r"^page-(\d+)-of-(\d+)(?:[.-]v(\d+))?\.png$", file_name)
     if page_match:
         return {
             "page": int(page_match.group(1)),
             "total": int(page_match.group(2)),
             "location": None,
             "total_location": None,
+            "variant_index": int(page_match.group(3) or 0),
         }
 
-    location_match = re.match(r"^loc-(\d+)-of-(\d+)\.png$", file_name)
+    location_match = re.match(r"^loc-(\d+)-of-(\d+)(?:[.-]v(\d+))?\.png$", file_name)
     if location_match:
         return {
             "page": None,
             "total": None,
             "location": int(location_match.group(1)),
             "total_location": int(location_match.group(2)),
+            "variant_index": int(location_match.group(3) or 0),
         }
 
     return None
@@ -1166,6 +1197,7 @@ def canonical_capture_sort_key(entry):
             0,
             entry.get("location") or 0,
             entry.get("total_location") or 0,
+            entry.get("variant_index") or 0,
             entry.get("file") or "",
         )
     if entry.get("page") is not None:
@@ -1173,9 +1205,10 @@ def canonical_capture_sort_key(entry):
             1,
             entry.get("page") or 0,
             entry.get("total") or 0,
+            entry.get("variant_index") or 0,
             entry.get("file") or "",
         )
-    return (2, 0, 0, entry.get("file") or "")
+    return (2, 0, 0, 0, entry.get("file") or "")
 
 
 def scan_canonical_pages_manifest_entries(screenshots_dir):
@@ -1197,6 +1230,7 @@ def scan_canonical_pages_manifest_entries(screenshots_dir):
                 "total": parsed["total"],
                 "location": parsed["location"],
                 "total_location": parsed["total_location"],
+                "variant_index": parsed.get("variant_index", 0),
             }
         )
 
@@ -1395,20 +1429,54 @@ def build_canonical_capture_filename(
     current_location=None,
     total_location=None,
     prefer_location=False,
+    variant_index=1,
 ):
     """Return canonical nav-key filename or None when nav values are unknown."""
+    normalized_variant_index = variant_index if isinstance(variant_index, int) else 1
+    if normalized_variant_index < 1:
+        normalized_variant_index = 1
+    variant_suffix = f"-v{normalized_variant_index:04d}"
+
     if prefer_location and current_location is not None and total_location is not None:
         width = max(4, len(str(total_location)))
-        return f"loc-{current_location:0{width}d}-of-{total_location:0{width}d}.png"
+        return f"loc-{current_location:0{width}d}-of-{total_location:0{width}d}{variant_suffix}.png"
 
     if current is not None and total is not None:
-        return f"page-{current:04d}-of-{total:04d}.png"
+        return f"page-{current:04d}-of-{total:04d}{variant_suffix}.png"
 
     if current_location is not None and total_location is not None:
         width = max(4, len(str(total_location)))
-        return f"loc-{current_location:0{width}d}-of-{total_location:0{width}d}.png"
+        return f"loc-{current_location:0{width}d}-of-{total_location:0{width}d}{variant_suffix}.png"
 
     return None
+
+
+def resolve_variant_screenshot_path(
+    screenshots_dir,
+    *,
+    current,
+    total,
+    current_location,
+    total_location,
+    prefer_location,
+):
+    """Return a free dashed-variant path for a nav marker."""
+    variant_index = 1
+    while True:
+        variant_filename = build_canonical_capture_filename(
+            current=current,
+            total=total,
+            current_location=current_location,
+            total_location=total_location,
+            prefer_location=prefer_location,
+            variant_index=variant_index,
+        )
+        if not variant_filename:
+            return None
+        variant_path = screenshots_dir / variant_filename
+        if not variant_path.exists():
+            return variant_path
+        variant_index += 1
 
 
 def iter_capture_locators(page):
@@ -1499,6 +1567,7 @@ def save_page_screenshot(
     screenshots_dir,
     overwrite_existing=False,
     prefer_location=False,
+    allow_existing_variant=False,
     current=None,
     total=None,
     current_location=None,
@@ -1517,6 +1586,18 @@ def save_page_screenshot(
         return "skipped_unknown", None
 
     screenshot_path = screenshots_dir / filename
+    if allow_existing_variant and not overwrite_existing and screenshot_path.exists():
+        variant_path = resolve_variant_screenshot_path(
+            screenshots_dir,
+            current=current,
+            total=total,
+            current_location=current_location,
+            total_location=total_location,
+            prefer_location=prefer_location,
+        )
+        if variant_path is not None:
+            screenshot_path = variant_path
+
     return capture_current_view_to_path(
         page,
         screenshot_path,
@@ -1542,7 +1623,7 @@ def save_explicit_page_capture(
         )
         return "skipped_unknown", None
 
-    filename = f"page-{target_page:04d}-of-{total_pages:04d}.png"
+    filename = f"page-{target_page:04d}-of-{total_pages:04d}-v0001.png"
     screenshot_path = screenshots_dir / filename
     return capture_current_view_to_path(
         page,
@@ -2365,8 +2446,14 @@ def main():
 
                 turn_attempts += 1
                 if not click_next_button(page):
-                    print("Next-page controls not found — likely at the end of the book.")
-                    break
+                    print("Warning: next-page click failed; attempting TOC/modal recovery.")
+                    if wait_for_next_control(
+                        page, timeout_ms=2_500, poll_ms=120
+                    ) and click_next_button(page):
+                        print("Info: next-page click succeeded after recovery.")
+                    else:
+                        print("Next-page controls not found — likely at the end of the book.")
+                        break
 
                 changed_by_signature, _retries_used = wait_for_turn_content_change(
                     page,
@@ -2438,11 +2525,26 @@ def main():
                     else:
                         print("Warning: page content did not confirm change within 8s; continuing.")
                 on_page_turn(page, current, total, current_location, total_location)
+
+                same_page_marker = (
+                    isinstance(previous_page, int)
+                    and isinstance(current, int)
+                    and current == previous_page
+                )
+                same_location_marker = (
+                    isinstance(previous_location, int)
+                    and isinstance(current_location, int)
+                    and current_location == previous_location
+                )
+                allow_existing_variant = changed_by_signature and (
+                    same_page_marker or same_location_marker
+                )
                 capture_status, _screenshot_path = save_page_screenshot(
                     page,
                     screenshots_dir,
                     overwrite_existing=args.overwrite_existing,
                     prefer_location=(nav_mode == "location"),
+                    allow_existing_variant=allow_existing_variant,
                     current=current,
                     total=total,
                     current_location=current_location,

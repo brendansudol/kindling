@@ -126,7 +126,7 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 ## How it works
 
 - Opens your book in Kindle Cloud Reader via Playwright
-- Saves screenshots to `./books/<asin>/pages/` with canonical nav-keyed names (`page-0238-of-0452.png`, `loc-0002-of-6446.png`)
+- Saves screenshots to `./books/<asin>/pages/` with canonical nav-keyed names (`page-0238-of-0452-v0001.png`, `loc-0002-of-6446-v0001.png`); when content changes but footer nav repeats, variant captures increment (`-v0002`, `-v0003`, ...)
 - Captures normalized metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
 - Transcribes screenshots with OpenAI (2-pass OCR + QA) into `./books/<asin>/transcripts/`
 - Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)

@@ -184,18 +184,21 @@ def parse_capture_metadata_from_filename(name: str) -> dict[str, Any]:
         "total": None,
         "location": None,
         "total_location": None,
+        "variant_index": 0,
     }
 
-    page_match = re.search(r"^page-(\d+)-of-(\d+)\.png$", name)
+    page_match = re.search(r"^page-(\d+)-of-(\d+)(?:[.-]v(\d+))?\.png$", name)
     if page_match:
         metadata["page"] = parse_int(page_match.group(1))
         metadata["total"] = parse_int(page_match.group(2))
+        metadata["variant_index"] = parse_int(page_match.group(3)) or 0
         return metadata
 
-    location_match = re.search(r"^loc-(\d+)-of-(\d+)\.png$", name)
+    location_match = re.search(r"^loc-(\d+)-of-(\d+)(?:[.-]v(\d+))?\.png$", name)
     if location_match:
         metadata["location"] = parse_int(location_match.group(1))
         metadata["total_location"] = parse_int(location_match.group(2))
+        metadata["variant_index"] = parse_int(location_match.group(3)) or 0
 
     return metadata
 
@@ -490,6 +493,7 @@ def load_captures(book_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]
                         "total": parse_int(item.get("total")),
                         "location": parse_int(item.get("location")),
                         "total_location": parse_int(item.get("total_location")),
+                        "variant_index": parse_int(item.get("variant_index")) or 0,
                     }
                 )
 
@@ -513,6 +517,7 @@ def load_captures(book_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]
                 "total": metadata.get("total"),
                 "location": metadata.get("location"),
                 "total_location": metadata.get("total_location"),
+                "variant_index": metadata.get("variant_index"),
             }
         )
 
