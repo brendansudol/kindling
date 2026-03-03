@@ -76,6 +76,28 @@ python scripts/extract.py --asin B00FO74WXA --overwrite-existing
 python scripts/extract.py --asin B00FO74WXA --capture-pages 50-55,114,140 --no-metadata
 ```
 
+## Extract library
+
+```bash
+python scripts/extract_library.py [--headless] [--output books/library.json] [--max-scroll-steps 800] [--scroll-pause-ms 900] [--stagnant-rounds 6]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--url` | Kindle library URL | Source library URL (resourceType=EBOOK + acquisition desc) |
+| `--output` | `books/library.json` | Output JSON path for extracted library books |
+| `--max-scroll-steps` | 800 | Maximum number of scroll actions while loading lazy content |
+| `--scroll-pause-ms` | 900 | Wait time after each scroll action |
+| `--stagnant-rounds` | 6 | Stop after this many no-growth rounds while near bottom |
+| `--headless` | off | Run Chromium in headless mode |
+
+### Example
+
+```bash
+# Load all books in Kindle library and save asin/title/author/cover URL
+python scripts/extract_library.py --headless --output books/library.json
+```
+
 ## Transcribe pages
 
 Set your API key (the scripts auto-load `.env` via `python-dotenv`):
