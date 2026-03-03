@@ -158,12 +158,16 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 
 `pages.json` is written incrementally during extraction and now includes:
 
-- `coverage`: capture completeness diagnostics (`status`, `expected_total_pages`, `missing_pages`, and unresolved candidate intersections)
+- `coverage`: capture completeness diagnostics
+  - `raw_missing_pages`: all uncaptured page numbers in `1..expected_total_pages`
+  - `missing_pages`: confirmed missing pages (excludes unresolved jump candidates)
+  - `unresolved_missing_pages`: uncaptured pages that may be composite/implicit due jump behavior
+  - `status`: one of `complete`, `uncertain_gaps`, `incomplete`, `unknown_total`
 - `anomalies`: cumulative event log for navigation irregularities across runs
   - `auto_turn_delta`: emitted when next-page iteration observes page deltas other than `+1`
   - `capture_pages_resolution`: emitted when `--capture-pages` cannot resolve exactly (mismatch, location-only, navigation failure, skipped unknown)
 
-`coverage.unresolved_page_candidates` indicates pages affected by observed navigation anomalies. Treat these as "unverified" missing pages, not guaranteed hard gaps.
+`coverage.unresolved_page_candidates` indicates pages affected by observed navigation anomalies. Treat these as unresolved candidates, not guaranteed hard gaps.
 
 ## Transcript outputs
 

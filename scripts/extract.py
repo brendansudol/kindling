@@ -1320,9 +1320,9 @@ def build_pages_coverage_payload(entries, anomaly_events, last_run_mode):
             page_totals.add(page_total)
 
     expected_total_pages = max(page_totals) if page_totals else None
-    missing_pages = []
+    raw_missing_pages = []
     if expected_total_pages is not None:
-        missing_pages = sorted(
+        raw_missing_pages = sorted(
             page_number
             for page_number in range(1, expected_total_pages + 1)
             if page_number not in captured_pages
@@ -1330,16 +1330,23 @@ def build_pages_coverage_payload(entries, anomaly_events, last_run_mode):
 
     unresolved_page_candidates = collect_unresolved_page_candidates(anomaly_events)
     unresolved_missing_pages = []
-    if missing_pages:
-        missing_set = set(missing_pages)
+    if raw_missing_pages:
+        missing_set = set(raw_missing_pages)
         unresolved_missing_pages = [
             page_number for page_number in unresolved_page_candidates if page_number in missing_set
         ]
+
+    unresolved_missing_set = set(unresolved_missing_pages)
+    missing_pages = [
+        page_number for page_number in raw_missing_pages if page_number not in unresolved_missing_set
+    ]
 
     if expected_total_pages is None:
         status = "unknown_total"
     elif missing_pages:
         status = "incomplete"
+    elif unresolved_missing_pages:
+        status = "uncertain_gaps"
     else:
         status = "complete"
 
@@ -1348,6 +1355,8 @@ def build_pages_coverage_payload(entries, anomaly_events, last_run_mode):
         "last_run_mode": last_run_mode,
         "expected_total_pages": expected_total_pages,
         "captured_unique_page_count": len(captured_pages),
+        "raw_missing_pages": raw_missing_pages,
+        "raw_missing_count": len(raw_missing_pages),
         "missing_pages": missing_pages,
         "missing_count": len(missing_pages),
         "unresolved_page_candidates": unresolved_page_candidates,
