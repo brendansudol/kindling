@@ -67,9 +67,7 @@ def scroll_library_until_complete(
     for step in range(1, max_scroll_steps + 1):
         current_count = get_visible_item_count(page)
         metrics = get_scroll_metrics(page)
-        near_bottom = (
-            metrics["scrollTop"] + metrics["clientHeight"] >= metrics["scrollHeight"] - 5
-        )
+        near_bottom = metrics["scrollTop"] + metrics["clientHeight"] >= metrics["scrollHeight"] - 5
 
         if current_count != previous_count:
             print(
@@ -102,8 +100,7 @@ def scroll_library_until_complete(
         page.wait_for_timeout(scroll_pause_ms)
     else:
         print(
-            "Warning: reached --max-scroll-steps before stability; "
-            "library may be partially loaded."
+            "Warning: reached --max-scroll-steps before stability; library may be partially loaded."
         )
 
     # Give the page one final chance to finish async loading.

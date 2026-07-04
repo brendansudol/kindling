@@ -1338,7 +1338,9 @@ def build_pages_coverage_payload(entries, anomaly_events, last_run_mode):
 
     unresolved_missing_set = set(unresolved_missing_pages)
     missing_pages = [
-        page_number for page_number in raw_missing_pages if page_number not in unresolved_missing_set
+        page_number
+        for page_number in raw_missing_pages
+        if page_number not in unresolved_missing_set
     ]
 
     if expected_total_pages is None:
