@@ -104,30 +104,33 @@ Set your API key (the scripts auto-load `.env` via `python-dotenv`):
 
 ```bash
 # Recommended: put key in .env
-OPENAI_API_KEY=your_key_here
+GEMINI_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here  # used only if Gemini declines a page as RECITATION
 
 # Optional: export directly in shell instead
-# export OPENAI_API_KEY=your_key_here
+# export GEMINI_API_KEY=your_key_here
 ```
 
 Run transcription:
 
 ```bash
-python scripts/transcribe.py --asin B00FO74WXA [--model gpt-5] [--qa-model gpt-5] [--start-at 0] [--max-pages 0] [--concurrency 4] [--force] [--dry-run] [--max-retries 3] [--max-output-tokens 4000]
+python scripts/transcribe.py --asin B00FO74WXA [--model gemini-3.5-flash] [--image-detail high] [--thinking-level minimal] [--no-fallback] [--start-at 0] [--max-pages 0] [--concurrency 2] [--force] [--dry-run] [--max-retries 3] [--max-output-tokens 4096]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--asin` | required | Book ASIN (maps to `books/<asin>/`) |
-| `--model` | gpt-5 | Vision OCR model for pass 1 |
-| `--qa-model` | gpt-5 | QA correction model for pass 2 |
+| `--model` | gemini-3.5-flash | Gemini vision OCR model |
+| `--image-detail` | high | Image media resolution (`low`, `medium`, or `high`) |
+| `--thinking-level` | minimal | Gemini thinking level (`minimal`, `low`, `medium`, or `high`) |
+| `--no-fallback` | off | Disable the GPT-5.6 Luna fallback for Gemini `RECITATION` responses |
 | `--start-at` | 0 | Start index in ordered capture list |
 | `--max-pages` | 0 | Max captures after start index (0 = all) |
-| `--concurrency` | 4 | Number of captures to transcribe concurrently |
+| `--concurrency` | 2 | Number of captures to transcribe concurrently |
 | `--force` | off | Re-run OCR even when canonical output exists |
 | `--dry-run` | off | Show planned workload without API calls |
-| `--max-retries` | 3 | Retry attempts per OCR pass on transient failures |
-| `--max-output-tokens` | 4000 | Maximum output tokens for each model response |
+| `--max-retries` | 3 | Retry attempts per OCR request on transient failures |
+| `--max-output-tokens` | 4096 | Maximum output tokens for each model response |
 
 ### Examples
 
@@ -138,8 +141,8 @@ python scripts/transcribe.py --asin B00FO74WXA
 # Transcribe 25 captures starting from index 100
 python scripts/transcribe.py --asin B00FO74WXA --start-at 100 --max-pages 25
 
-# Transcribe with 4 workers in parallel
-python scripts/transcribe.py --asin B00FO74WXA --concurrency 4
+# Transcribe with 2 workers in parallel
+python scripts/transcribe.py --asin B00FO74WXA --concurrency 2
 
 # Preview workload only
 python scripts/transcribe.py --asin B00FO74WXA --dry-run
@@ -150,7 +153,9 @@ python scripts/transcribe.py --asin B00FO74WXA --dry-run
 - Opens your book in Kindle Cloud Reader via Playwright
 - Saves screenshots to `./books/<asin>/pages/` with canonical nav-keyed names (`page-0238-of-0452-v0001.png`, `loc-0002-of-6446-v0001.png`); when content changes but footer nav repeats, variant captures increment (`-v0002`, `-v0003`, ...)
 - Captures normalized metadata and TOC to `metadata.json`, `toc.json`, and `pages.json`
-- Transcribes screenshots with OpenAI (2-pass OCR + QA) into `./books/<asin>/transcripts/`
+- Transcribes screenshots with one Gemini 3.5 Flash OCR pass into `./books/<asin>/transcripts/`
+- Uses GPT-5.6 Luna only when Gemini returns `RECITATION` without OCR text; the canonical record retains both providers' usage, cost, and response metadata
+- On macOS, uses local Vision OCR as a final no-cost fallback if Luna also returns `content_filter`; local results are deliberately low-confidence review items because typography cannot be recovered reliably
 - Auto-stops at end-matter boundaries (acknowledgements, about the author, etc.)
 - Best-effort: restores your reading position when done
 
@@ -177,6 +182,7 @@ The transcription script writes:
 - `books/<asin>/transcripts/captures.jsonl` (one record per capture)
 - `books/<asin>/transcripts/canonical/*.json` (one result per captured page image)
 - `books/<asin>/transcripts/book.md` (compiled transcript in reading order)
+- `books/<asin>/transcripts/review.json` (captures flagged by deterministic quality checks)
 
 ## Notes
 
@@ -188,4 +194,6 @@ The transcription script writes:
 - In `--capture-pages` mode, screenshots are only saved when Kindle resolves exactly to the requested page; mismatches are logged as anomalies and skipped
 - Pages with unknown footer navigation are skipped (no unstable `unknown` files are written)
 - Transcription resumes from saved per-capture canonical results and auto re-runs when source image path/mtime/size changes (or use `--force`)
+- Transcription also invalidates cached results when the model, image detail, thinking level, or prompt version changes
+- See [`docs/OCR_MODEL_BENCHMARK.md`](docs/OCR_MODEL_BENCHMARK.md) for the model experiment and production rationale
 - Press `Ctrl+C` to stop at any time
