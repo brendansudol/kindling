@@ -24,7 +24,9 @@ Audit `<book_synthesis>` for faithfulness to the supplied book. Treat `<source_m
 
 Check for unsupported claims, missing major ideas, overstated themes, unlabeled inference, lost qualifications, misrepresented examples, incorrect chapter relationships, duplicated points, citation mismatches, OCR-derived errors, unmarked added advice, and disproportionate coverage.
 
-Also verify that quotations accurately reproduce the supplied text and have source locators that support them.
+Also verify that quotations accurately reproduce the supplied text and have source locators that support them, and check the synthesis for internal contradictions between its own sections.
+
+When the material is too large to verify exhaustively, audit in this priority order and state the approach taken: first, every quotation; second, claims in the executive summary, takeaways, and cheat sheet; third, statements labeled `Synthesis` or `Interpretation`, checking both that the labels are warranted and that unlabeled claims do not need them; fourth, a spot check of citations from each chapter.
 
 Distinguish among:
 
@@ -33,6 +35,8 @@ Distinguish among:
 - `Unverifiable`: the available source material is incomplete or insufficient to confirm or reject the claim
 
 Do not describe content as omitted, unsupported, or inaccurate merely because it is absent from a limited excerpt. Account explicitly for gaps in the supplied source material.
+
+When `<source_material>` is missing or thin, still audit internal consistency, labeling, duplication, and citation form, but classify source-dependent judgments as `Unverifiable` and state up front what could not be checked.
 
 Do not perform external fact-checking or judge the book’s real-world factual accuracy. Audit only whether the synthesis faithfully represents the supplied material.
 

@@ -20,10 +20,18 @@ not automatically be discarded as duplicates.
 
 ## Workflow
 
-1. Use `01-chapter-map.md` once to verify the book structure.
-2. Use `02-chapter-summary.md` separately for every substantive chapter or section.
-3. Use `03-book-synthesis.md` after all chapter summaries exist.
-4. Use `04-accuracy-audit.md` with a fresh context to check the synthesis.
+1. Use `01-chapter-map.md` once to verify the book structure. Its JSON boundary block
+   can drive scripted slicing of `transcripts/book.md` into per-chapter files.
+2. Use `02-chapter-summary.md` separately for every section the map's summarization
+   plan marks as substantive. For `book_context`, supply the map's structural overview
+   plus the `Chapter in Brief` sections of earlier summaries; full previous summaries
+   are usually too long and rarely necessary.
+3. Use `03-book-synthesis.md` after all chapter summaries exist. Including the raw
+   transcript improves verification but is optional when context is constrained.
+4. Use `04-accuracy-audit.md` with a fresh context to check the synthesis. When the
+   full transcript will not fit, supply excerpts keyed to the citations under review.
+5. Apply the audit's corrections to the synthesis and re-check the corrected passages.
+   A full re-audit is only warranted after substantial revision.
 
 ## Recommended output layout
 
