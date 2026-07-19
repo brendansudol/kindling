@@ -1,0 +1,65 @@
+{
+  "description": "Ten representative interior Kindle captures: five from each of two full-book extracts.",
+  "samples": [
+    {
+      "id": "B00ZF6H8MC-loc-0353",
+      "asin": "B00ZF6H8MC",
+      "path": "books/B00ZF6H8MC/pages/loc-0353-of-5212-v0001.png",
+      "features": ["prose", "blockquote", "heading", "curly-quotes"]
+    },
+    {
+      "id": "B00ZF6H8MC-loc-1039",
+      "asin": "B00ZF6H8MC",
+      "path": "books/B00ZF6H8MC/pages/loc-1039-of-5212-v0001.png",
+      "features": ["dense-prose", "numbers", "apostrophes", "quotation"]
+    },
+    {
+      "id": "B00ZF6H8MC-loc-2236",
+      "asin": "B00ZF6H8MC",
+      "path": "books/B00ZF6H8MC/pages/loc-2236-of-5212-v0001.png",
+      "features": ["prose", "blockquote", "heading", "dialogue"]
+    },
+    {
+      "id": "B00ZF6H8MC-loc-3441",
+      "asin": "B00ZF6H8MC",
+      "path": "books/B00ZF6H8MC/pages/loc-3441-of-5212-v0001.png",
+      "features": ["dense-prose", "blockquote", "italics", "em-dash"]
+    },
+    {
+      "id": "B00ZF6H8MC-loc-4168",
+      "asin": "B00ZF6H8MC",
+      "path": "books/B00ZF6H8MC/pages/loc-4168-of-5212-v0001.png",
+      "features": ["dense-prose", "italics", "ellipsis", "accented-words", "em-dash"]
+    },
+    {
+      "id": "B0847KS4ZN-page-0033",
+      "asin": "B0847KS4ZN",
+      "path": "books/B0847KS4ZN/pages/page-0033-of-0337-v0001.png",
+      "features": ["prose", "pull-quote", "italics", "bold", "curly-quotes"]
+    },
+    {
+      "id": "B0847KS4ZN-page-0083-v2",
+      "asin": "B0847KS4ZN",
+      "path": "books/B0847KS4ZN/pages/page-0083-of-0337-v0002.png",
+      "features": ["numbered-list", "blank-lines", "heading", "pull-quote"]
+    },
+    {
+      "id": "B0847KS4ZN-page-0168",
+      "asin": "B0847KS4ZN",
+      "path": "books/B0847KS4ZN/pages/page-0168-of-0337-v0001.png",
+      "features": ["prose", "shaded-quote", "italics", "acronym", "hyphenation"]
+    },
+    {
+      "id": "B0847KS4ZN-page-0253-v2",
+      "asin": "B0847KS4ZN",
+      "path": "books/B0847KS4ZN/pages/page-0253-of-0337-v0002.png",
+      "features": ["workbook", "numbered-headings", "bold", "quotation", "acronym"]
+    },
+    {
+      "id": "B0847KS4ZN-page-0303",
+      "asin": "B0847KS4ZN",
+      "path": "books/B0847KS4ZN/pages/page-0303-of-0337-v0001.png",
+      "features": ["dialogue", "italics", "bold-labels", "ellipsis", "nested-quotes"]
+    }
+  ]
+}
