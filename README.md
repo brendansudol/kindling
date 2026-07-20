@@ -2,6 +2,9 @@
 
 Tools to get more out of your digital book collection.
 
+For the complete one-book workflow—from Kindle extraction through independently
+audited analysis—follow the [end-to-end book playbook](docs/BOOK_PLAYBOOK.md).
+
 ## Setup
 
 ```bash
@@ -183,6 +186,70 @@ The transcription script writes:
 - `books/<asin>/transcripts/canonical/*.json` (one result per captured page image)
 - `books/<asin>/transcripts/book.md` (compiled transcript in reading order)
 - `books/<asin>/transcripts/review.json` (captures flagged by deterministic quality checks)
+
+## Build verified transcript sections
+
+After `analysis/chapter-map.md` has been verified, build reproducible section-sized
+transcript views:
+
+```bash
+python scripts/build_sections.py --asin B00FO74WXA
+```
+
+This writes:
+
+- `books/<asin>/transcripts/sections.json` (source hashes, resolved boundaries, capture
+  IDs, character offsets, completeness, warnings, and output hashes)
+- `books/<asin>/transcripts/sections/*.md` (one derived view for every mapped unit,
+  including front and back matter)
+
+`book.md` and the canonical capture records remain the sources of truth. Section files
+must not be edited manually; regenerate them after changing the transcript or chapter
+map. Boundary resolution prefers section-title text within the mapped capture and falls
+back to the first eligible capture boundary when no title is visible. Marker fallbacks
+are recorded in `sections.json` for review.
+
+When repeated captures share a marker and the next section has no printed title, record
+the reviewed start in `analysis/section-boundaries.json`:
+
+```json
+{
+  "schema_version": 1,
+  "sections": {
+    "5": {
+      "capture_id": "page-0004-of-0157-v0002"
+    },
+    "12": {
+      "capture_id": "loc-1742-of-5212-v0002",
+      "match_text": "Chapter 4"
+    },
+    "27": {
+      "capture_id": "loc-3403-of-4548-v0001",
+      "allow_marker_mismatch": true,
+      "reason": "The mapped anchor contains only the preceding chapter's conclusion."
+    }
+  }
+}
+```
+
+An optional `match_text` (and one-based `match_occurrence`) resolves a boundary inside
+the chosen capture. Reviewed overrides are hashed into `sections.json`, so later edits
+make `--check` report the derived files as stale. If the first visible section text is
+at a different marker from the mapped structural anchor, `allow_marker_mismatch` also
+requires a human-readable `reason`; the reason is copied into the section manifest.
+
+Useful checks:
+
+```bash
+# Resolve and report boundaries without writing files
+python scripts/build_sections.py --asin B00FO74WXA --dry-run
+
+# Reject unresolved marker fallbacks; title matches and reviewed overrides are accepted
+python scripts/build_sections.py --asin B00FO74WXA --dry-run --fail-on-warnings
+
+# Detect changed sources, maps, capture text, or derived files
+python scripts/build_sections.py --asin B00FO74WXA --check
+```
 
 ## Notes
 

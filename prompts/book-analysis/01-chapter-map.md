@@ -64,8 +64,11 @@ Create a table with:
 
 After the table, repeat the same boundaries as a fenced JSON code block: an array of
 objects with the keys `seq`, `title`, `type`, `start_marker`, `end_marker`, and
-`completeness`. The JSON must match the table exactly, so later stages can slice the
-transcript programmatically.
+`completeness`. The JSON must match the table exactly, so `scripts/build_sections.py`
+can build capture-aware section files. This must be the only fenced block labeled
+`json` in the output. Do not add capture IDs or offsets that are not present in the
+supplied inputs; ambiguous repeated-marker boundaries are resolved separately through
+reviewed section-boundary overrides.
 
 ### Structural Overview
 
@@ -82,6 +85,38 @@ Recommend how the next stage should handle each section: which sections warrant 
 full chapter summary, which are minor enough to combine or skip (for example, trivial
 front matter), and which are long or dense enough to summarize in parts. Give a
 one-line reason for each recommendation.
+
+After the prose recommendations, provide a fenced code block labeled `summary-plan`
+(not `json`) containing valid JSON with this shape:
+
+```summary-plan
+{
+  "schema_version": 1,
+  "assignments": [
+    {
+      "seq": 1,
+      "action": "full",
+      "summary_id": "01-introduction",
+      "outputs": ["01-introduction.md"],
+      "reason": "Substantive framing needed to understand the book."
+    }
+  ]
+}
+```
+
+The exact JSON object should also be saved as `analysis/summary-plan.json`. Include
+every `seq` from the boundary block exactly once. Use only these actions:
+
+- `full`: one mapped section produces one summary file.
+- `combine`: two or more mapped sections share the same `summary_id` and output file.
+- `split`: one long mapped section produces two or more output files; add concise
+  `split_guidance` describing source-locator boundaries for each output.
+- `skip`: no detailed summary is needed; use `null` for `summary_id` and an empty
+  `outputs` array.
+
+Use zero-padded, useful filenames relative to `analysis/chapters/`. Ensure combined
+assignments repeat the same `summary_id` and output filename, and that every planned
+output has a source assignment.
 
 ### Extraction Warnings
 
