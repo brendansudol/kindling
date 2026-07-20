@@ -251,6 +251,31 @@ python scripts/build_sections.py --asin B00FO74WXA --dry-run --fail-on-warnings
 python scripts/build_sections.py --asin B00FO74WXA --check
 ```
 
+## Export shareable book analyses
+
+The canonical analyses live under the gitignored `books/<asin>/analysis/` tree. Copy
+only approved analyses into a visible, shareable directory with:
+
+```bash
+python scripts/export_book_analyses.py
+python scripts/export_book_analyses.py --check
+```
+
+The allowlist is `config/book-analysis-allowlist.txt`. The default export directory is
+`shared-book-analyses/`, with one kebab-cased title directory per book plus a generated
+index and source-hash manifest. Title resolution prefers `metadata.json` and falls back
+to the verified chapter-map heading when metadata is empty.
+
+Each exported book contains only `book-synthesis.md`, `chapter-map.md`, and the
+`chapters/` directory. The canonical `summary-audit.md` remains required and must have
+an accepted final verdict, but only that verdict is recorded in the public manifest;
+the audit history and pipeline-only boundary JSON are not copied.
+
+The export is generated output: edit the canonical analysis, rerun the exporter, and
+commit the refreshed copies. If an allowlist change leaves old or unknown files in the
+export directory, the exporter refuses to delete them automatically; inspect them and
+rerun with `--prune` to synchronize the directory exactly.
+
 ## Notes
 
 - First run requires Amazon login; session is persisted to `~/.kindle-reader-profile`

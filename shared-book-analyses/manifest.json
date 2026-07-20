@@ -1,0 +1,934 @@
+{
+  "schema_version": 1,
+  "allowlist": "config/book-analysis-allowlist.txt",
+  "book_count": 8,
+  "books": [
+    {
+      "asin": "B07NYBL322",
+      "title": "Step by Step to Stand-Up Comedy, Revised Edition",
+      "directory": "step-by-step-to-stand-up-comedy-revised-edition",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 14,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "a12608a0ae88c9306966f338642f4d6b30bac0e6d8410922d760ba87371ca493",
+          "size_bytes": 17109
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "ad4cab9e097e2f153815c459008ef90f13ac805309a35640cfb270d9e6d358ec",
+          "size_bytes": 32114
+        },
+        {
+          "path": "chapters/01-secrets-of-joke-structure.md",
+          "sha256": "d089d6e39644f672b313ecd0db346af5af8ff394a3a132e1304c759c75f66161",
+          "size_bytes": 13537
+        },
+        {
+          "path": "chapters/02-joke-writing.md",
+          "sha256": "81e2f0e7a90769000cd9e1b927f807e9ad9bf91b075dbf20c287f91c44491325",
+          "size_bytes": 11748
+        },
+        {
+          "path": "chapters/03-what-to-write-jokes-about.md",
+          "sha256": "2bc11860773aba05818ce1a4fc9ea847dc50f61aef944bc88db5823e86297d81",
+          "size_bytes": 11740
+        },
+        {
+          "path": "chapters/04-from-funny-to-funnier.md",
+          "sha256": "a8ef596dd47df056f0155193ab6ff4a6272b7d278e5db943bd42399e5c8a1ad6",
+          "size_bytes": 9140
+        },
+        {
+          "path": "chapters/05-assembling-a-routine.md",
+          "sha256": "82e456baf7dd15beae189b70239e8cfe3f3fa1667a5e17bb4c24963b99852bb9",
+          "size_bytes": 8789
+        },
+        {
+          "path": "chapters/06-act-outs-scene-work.md",
+          "sha256": "789bb737956fb7b3194c5692a26f04a55117037cbaa74fdae963542544a797be",
+          "size_bytes": 10568
+        },
+        {
+          "path": "chapters/07-rehearsing.md",
+          "sha256": "cbe8d7a35ecf8b404453e39544d8e67ef5fb019b08f866acaa21d72591e24b2b",
+          "size_bytes": 11594
+        },
+        {
+          "path": "chapters/08-greg-deans-rehearsal-process.md",
+          "sha256": "2d7b201acba23051c96818f038c4385d290f17147ee5d41ffa9e76d032e157a4",
+          "size_bytes": 10908
+        },
+        {
+          "path": "chapters/09-microphone-technique.md",
+          "sha256": "b0a82ffcbc8b0655d73ce7b61487f86ac4124f8f5560461160ea7e9df64f761a",
+          "size_bytes": 5784
+        },
+        {
+          "path": "chapters/10-peak-performance.md",
+          "sha256": "cc78a48ad278b5ef4c1d3e878fd2e3c9e9b69b9649a714b71bd1dcaf1546db7c",
+          "size_bytes": 11716
+        },
+        {
+          "path": "chapters/11-fearless-performing.md",
+          "sha256": "31c38833369c5f27141628ec82cc8d3323824353a19649eabcf0be6f46f4445e",
+          "size_bytes": 12603
+        },
+        {
+          "path": "chapters/12-getting-experience.md",
+          "sha256": "6c76b1fc322e56e4e7d24dc8b9c216fa919322f948ccf6bdf10a6e888cdef734",
+          "size_bytes": 7512
+        },
+        {
+          "path": "chapters/13-making-a-good-show-great.md",
+          "sha256": "78ebcc230c62694a8eb479f1227cdde1bebf54318675604acb43a3fa1e6c6723",
+          "size_bytes": 10840
+        },
+        {
+          "path": "chapters/14-glossary-of-stand-up-comedy-nomenclature.md",
+          "sha256": "ab8003952bcb563b0f246cca2ec0c677a74b15222f7367005612d0719aa56233",
+          "size_bytes": 9795
+        }
+      ]
+    },
+    {
+      "asin": "B00R3KEMMC",
+      "title": "The Comic Toolbox: How to Be Funny Even If You're Not",
+      "directory": "the-comic-toolbox-how-to-be-funny-even-if-youre-not",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 17,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "77ebd1eb8792a0ff4238dbe72a7f7f23656d9cbc8afb52c1a2203e60d1a84718",
+          "size_bytes": 17999
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "3a0f0fdb213560925b68e6a284864d30dba2266f24b4309dd25a17a4bf727f97",
+          "size_bytes": 32154
+        },
+        {
+          "path": "chapters/01-introduction.md",
+          "sha256": "458410cb40f84c6e95099242209b64ad0b51ebc614c9b534e36ee8fad829546c",
+          "size_bytes": 5236
+        },
+        {
+          "path": "chapters/02-chapter-01-comedy-is-truth-and-pain.md",
+          "sha256": "397062be7a279adaeb70fd3b7fc7aa138d17c524ff60418f46ff12bad0ae5356",
+          "size_bytes": 7438
+        },
+        {
+          "path": "chapters/03-chapter-02-the-will-to-risk.md",
+          "sha256": "dffa00f10862b6e957d4ba480c1718f6cb787a80e53f2228a4840d7aa29b1b91",
+          "size_bytes": 7084
+        },
+        {
+          "path": "chapters/04-chapter-03-the-comic-premise.md",
+          "sha256": "a5fe78c58973892c1504057cb213cbfd2f5469d050938724b8d82edf96784a23",
+          "size_bytes": 7130
+        },
+        {
+          "path": "chapters/05-chapter-04-comic-characters.md",
+          "sha256": "50f67d26917e96d67ce790d0ef47a4acdaa2a638f03335de5b2954e5ec232f71",
+          "size_bytes": 8132
+        },
+        {
+          "path": "chapters/06-chapter-05-some-tools-from-the-toolbox.md",
+          "sha256": "828dd297ebd1db1151cd81e44bce385b43c316b0098dc53634b59b3dc17dffe6",
+          "size_bytes": 6232
+        },
+        {
+          "path": "chapters/07-chapter-06-types-of-comic-stories.md",
+          "sha256": "c70f3e2c3d7f2bb07cb072443bd66194bfd71cd63d03ffe0a7d5756691e7e039",
+          "size_bytes": 6594
+        },
+        {
+          "path": "chapters/08-chapter-07-the-comic-throughline.md",
+          "sha256": "e4dc34b17927eb75bb8a1a7a930ccbc026bda48a276cbb3f83cad0b38196d34e",
+          "size_bytes": 7347
+        },
+        {
+          "path": "chapters/09-chapter-08-more-tools-from-the-toolbox.md",
+          "sha256": "e350fa3e088af5b5baaa6108f58bbd5620dae95c10329b2d46ba1cf6527328cd",
+          "size_bytes": 5669
+        },
+        {
+          "path": "chapters/10-chapter-09-practical-jokes.md",
+          "sha256": "e18afafc5eb0db6a505502fe65762dcd9b831cf8ebdf819a3f4c2eefdf860c2b",
+          "size_bytes": 1242
+        },
+        {
+          "path": "chapters/11-chapter-10-comedy-and-jeopardy.md",
+          "sha256": "3a2e82b32f9377bcdb1b95578174912ec4ae27551efc61318904030ab4915692",
+          "size_bytes": 4904
+        },
+        {
+          "path": "chapters/12-chapter-11-still-more-tools-from-the-toolbox.md",
+          "sha256": "e94bccdb823258a21355480d3986b7cfb7c0dd34946f219cb05267d8fd313a6b",
+          "size_bytes": 5978
+        },
+        {
+          "path": "chapters/13-chapter-12-situation-comedy.md",
+          "sha256": "a8f6dc55464b0381962c6ca5ce5ca6210bee26d7dba58a2f794c52e934337b46",
+          "size_bytes": 6204
+        },
+        {
+          "path": "chapters/14-chapter-13-sketch-comedy.md",
+          "sha256": "8c1577337afa918a6ff69e366b98a0db45e1a6a7f61540a657a663d6938871c3",
+          "size_bytes": 4734
+        },
+        {
+          "path": "chapters/15-chapter-14-toward-polish-and-perfection.md",
+          "sha256": "cf8fc6bf82c0d502d7a8d83d523c4cbb506b0d0e91a53cfc11d677b333922a50",
+          "size_bytes": 7502
+        },
+        {
+          "path": "chapters/16-chapter-15-scrapmetal-and-doughnuts.md",
+          "sha256": "ec98db4cc58e1354a439b2824f1ac342e0c1cfe03894ec4ccc022acccc178f6f",
+          "size_bytes": 7727
+        },
+        {
+          "path": "chapters/17-chapter-16-homilies-and-exhortations.md",
+          "sha256": "6259c96e3d08d3aef271f7339ba1fbda32efc7c0b98a0ad20107c7343df1f1f2",
+          "size_bytes": 6542
+        }
+      ]
+    },
+    {
+      "asin": "B0CDSLB4CF",
+      "title": "Finding Your Comic Genius",
+      "directory": "finding-your-comic-genius",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 34,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "bdbaf7cb756870c99e1c9b5fcbfb60a981db7c75429d7bee53efaa1f69ac8683",
+          "size_bytes": 25511
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "333174863f7de319f424910fb67d4207d5abd6a221d204e9edd31a40503e7e90",
+          "size_bytes": 15030
+        },
+        {
+          "path": "chapters/00-introduction.md",
+          "sha256": "8be10603e00740a1f16095ee00fa233df6c2dbf7158c441636c1cf408e81d92d",
+          "size_bytes": 4963
+        },
+        {
+          "path": "chapters/01-the-seesaw-theory.md",
+          "sha256": "e8f2ce52fe43df520e7a00340c461bd0712acc5f83c902eb852fad29181301b4",
+          "size_bytes": 5039
+        },
+        {
+          "path": "chapters/02-balloon-pops.md",
+          "sha256": "25a13d1051369ffb5e8545104ed8dfb1a6035cc99bd3a32042483545ad974400",
+          "size_bytes": 4828
+        },
+        {
+          "path": "chapters/03-word-smuggling.md",
+          "sha256": "1a64d656c0b05374da71feab0b9fb1452638ac23eb41d7e3ea702dfca12b0b8d",
+          "size_bytes": 3924
+        },
+        {
+          "path": "chapters/04-trimming-down-a-joke.md",
+          "sha256": "6dc2d6cc8969c22a99e2ed4ba80b6509049760bf95df63baeaa19dede79cdb9e",
+          "size_bytes": 4057
+        },
+        {
+          "path": "chapters/05-boom-mic-moments.md",
+          "sha256": "befadfa6083cf9a415b9781fb252cec1347a28e3bc4876e5ab06cfbe14505340",
+          "size_bytes": 3747
+        },
+        {
+          "path": "chapters/06-the-victim-of-a-joke.md",
+          "sha256": "1eb6f9a2ae3dd8b5a19e0be2853c59fa96ff1cbd37789f355d0243a8852209c0",
+          "size_bytes": 4098
+        },
+        {
+          "path": "chapters/07-triple-punches.md",
+          "sha256": "4ca6ca287612b4b4507c542a0a2cd06c2732b0c43adce4c2952e01a1e4aece66",
+          "size_bytes": 3277
+        },
+        {
+          "path": "chapters/08-detail.md",
+          "sha256": "faf478ece9c944c7782625a219cb141e8f6f2e0b108fbd61e06c9000a70185b0",
+          "size_bytes": 3442
+        },
+        {
+          "path": "chapters/09-tension.md",
+          "sha256": "5b123baccb73b56ed72a04c0c4abf12f7e362968efc4578070c299d7ed17000a",
+          "size_bytes": 3326
+        },
+        {
+          "path": "chapters/10-rolling-energy.md",
+          "sha256": "1d26423edf978960dccb1f68207172023ce53047ab6fb17307a0904178bbd944",
+          "size_bytes": 3978
+        },
+        {
+          "path": "chapters/11-toppers.md",
+          "sha256": "a1bb5ec2a5eaa49dc074718dc72b239173442c4c6e7b04f26823297334878694",
+          "size_bytes": 2463
+        },
+        {
+          "path": "chapters/12-misdirection.md",
+          "sha256": "d24c526d6d896e0c0b3381a6acd19131d0eb84dbdd9a7d19ace5da8e10e1f389",
+          "size_bytes": 2772
+        },
+        {
+          "path": "chapters/13-finding-your-style-of-comedy.md",
+          "sha256": "303e497935d6966d89dba74d5e3d56a226693b899305296c3bb35b6bed83bf97",
+          "size_bytes": 4321
+        },
+        {
+          "path": "chapters/14-status.md",
+          "sha256": "4cdd31e7a5baf6d4c79361a1465e70e19f50eb4670a3fb09d291391232f15ebc",
+          "size_bytes": 6693
+        },
+        {
+          "path": "chapters/15-persona.md",
+          "sha256": "dd36fa9604d0d17a19d362862779af0d0e797f1a45a2be3f1c5d4eac348a8a8a",
+          "size_bytes": 4027
+        },
+        {
+          "path": "chapters/16-first-impressions.md",
+          "sha256": "4e9653d0fe1b5264fd5b7c3d30cb35c6a3442090d60db09118ee30dbb1f9b785",
+          "size_bytes": 2901
+        },
+        {
+          "path": "chapters/17-originality.md",
+          "sha256": "d8536c93e23a93be807c310b7bdc0f59304e2a32ea89c88131ce75982060569d",
+          "size_bytes": 2388
+        },
+        {
+          "path": "chapters/18-virtual-comedy.md",
+          "sha256": "7f4a63c0f53fea485389fa21285f01a8d7b24a962f79b54bf0d6b5e7cfc736f4",
+          "size_bytes": 2815
+        },
+        {
+          "path": "chapters/19-creating-new-material.md",
+          "sha256": "c8eedc8d2e89cdad8d2ad5a168b198c66026f793d6523dc0c566d312869b9abb",
+          "size_bytes": 5358
+        },
+        {
+          "path": "chapters/20-ambiguity.md",
+          "sha256": "47b00050204709bbc9e22c767aebbf7c56414a17146ad8e98678b6f9ad0cc115",
+          "size_bytes": 3422
+        },
+        {
+          "path": "chapters/21-repetition-of-words.md",
+          "sha256": "621cc64bcf3cfe673f20f2b51d47fe2f7e937f4099893dde574de718b44e43de",
+          "size_bytes": 3266
+        },
+        {
+          "path": "chapters/22-lemoning.md",
+          "sha256": "ac9c5cb02a2566f4ec86b64fb98dd39fe44087a4d5fd1656ebbc9b3a5dad3df7",
+          "size_bytes": 2269
+        },
+        {
+          "path": "chapters/23-applying-everything-so-far.md",
+          "sha256": "317e96b7430334a3fc33d6c1050176750ca680b79286366a00ae1b76cb4766ab",
+          "size_bytes": 2144
+        },
+        {
+          "path": "chapters/24-flow.md",
+          "sha256": "6e7581db166ea28894fac2d07ce96c2b75a9bf944ecb4360d4316e0236d42fb3",
+          "size_bytes": 3038
+        },
+        {
+          "path": "chapters/25-performer-vs-artist.md",
+          "sha256": "5c6327c5369e9134a06c2184c962f7538c4957f5c3f0a34b1786f9a8eb1d37ea",
+          "size_bytes": 2378
+        },
+        {
+          "path": "chapters/26-timing.md",
+          "sha256": "23a6820d09afdf132a36ec14ad865e3ee69a19b26f97c0cea914394da1ac92f8",
+          "size_bytes": 2267
+        },
+        {
+          "path": "chapters/27-improvising.md",
+          "sha256": "4ccaa89ee0e49988f37ce2c1a7cccca2c6d19792434a2516a05e5537d62f0886",
+          "size_bytes": 1924
+        },
+        {
+          "path": "chapters/28-heckling.md",
+          "sha256": "74e5989c0b1af99898286cebaf2c692ac4ee64660114101d24216e8ce2d77a70",
+          "size_bytes": 2724
+        },
+        {
+          "path": "chapters/29-swearing.md",
+          "sha256": "7d6a066ff422031bf77abb97a5fc4b52a1806f201001ef0be233571a947c6133",
+          "size_bytes": 1911
+        },
+        {
+          "path": "chapters/30-storytelling.md",
+          "sha256": "e99654d6845abf0fea3e7597cf17869b2f1ff94fa894b2f0529717cdf5d1c523",
+          "size_bytes": 2989
+        },
+        {
+          "path": "chapters/31-pushing-yourself.md",
+          "sha256": "639eff8d22c0b95b3a052da24f57a57dd24fc1b4c892b06d7bc2329a41bc2597",
+          "size_bytes": 1379
+        },
+        {
+          "path": "chapters/32-afterword.md",
+          "sha256": "a80efbc3cc0fdd57e4619fa43c5b4aa2cf84ac47ed9e1327f6b516a6c18256d6",
+          "size_bytes": 971
+        },
+        {
+          "path": "chapters/33-bonus-corporate-comedy.md",
+          "sha256": "fe6477f8340076584494d5d2a154479e6fb03919ea28ce607049fe450dd858fc",
+          "size_bytes": 3817
+        }
+      ]
+    },
+    {
+      "asin": "B0DZJ4DKHM",
+      "title": "Joke Farming",
+      "directory": "joke-farming",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 16,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "c96d692acd9d53fc2f8fc6d2e58b6fb9fb4a6474137476ad63120e8c86fbedf0",
+          "size_bytes": 17729
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "48279f88357535efbf3456f6b47aa5c9a09e32463231d747843dc725c248d286",
+          "size_bytes": 33891
+        },
+        {
+          "path": "chapters/01-introduction.md",
+          "sha256": "0d00ec0e080b216d9c45128ca3df0a28b4995372ad46ce94383e2e1c00889941",
+          "size_bytes": 9495
+        },
+        {
+          "path": "chapters/02-my-process.md",
+          "sha256": "78ae38b0726e5994d7153a54f34e27f4117b74d1599958865e20821fded8d886",
+          "size_bytes": 11791
+        },
+        {
+          "path": "chapters/03-structure.md",
+          "sha256": "11c656325b3663bf8af232e8a7f222a29208ac46347e49e510031ad4d022bb3b",
+          "size_bytes": 8697
+        },
+        {
+          "path": "chapters/04-premise.md",
+          "sha256": "c161a063b667c74e37e32f954c7826e5bde47e73ba38b24c3bdd22fb9d61e967",
+          "size_bytes": 9277
+        },
+        {
+          "path": "chapters/05-voice.md",
+          "sha256": "d28200e3b731d3d85133614c9fbe2f01d062d25fe7ed532e15b95cc608a6ef2c",
+          "size_bytes": 8944
+        },
+        {
+          "path": "chapters/06-tone.md",
+          "sha256": "91518ccd66e55076e66803f22ccdd2e9cc1d54aeeccff24a7ff9a2cb14f6e895",
+          "size_bytes": 8792
+        },
+        {
+          "path": "chapters/07-wording.md",
+          "sha256": "34f76751212c6fd65b21933cd772a6cb0374a109deef747fd94cefb3e09038f8",
+          "size_bytes": 7034
+        },
+        {
+          "path": "chapters/08-audience.md",
+          "sha256": "c93195b9004a3584ec88189c9870bbbf42eaee60877b417f01a01876a4a55bb0",
+          "size_bytes": 8152
+        },
+        {
+          "path": "chapters/09-stand-up.md",
+          "sha256": "f2c11dbd3a18e14045163372f114d5312bcb408973116ed570759ab77bf0ef8e",
+          "size_bytes": 6320
+        },
+        {
+          "path": "chapters/10-narrative-comedy.md",
+          "sha256": "6d2f61b6868d5c760e299ec7d860602b928192e6cc27797acdd04ae5e6586b24",
+          "size_bytes": 7044
+        },
+        {
+          "path": "chapters/11-childrens-comedy.md",
+          "sha256": "6d9f65badcdb771e7b63949b63d57ca60816e53f50da3525edd531d6e7270598",
+          "size_bytes": 6103
+        },
+        {
+          "path": "chapters/12-satire.md",
+          "sha256": "319931889c031a2d61dfd61d3a5834861a375175006ea025908829ae87a6b942",
+          "size_bytes": 7132
+        },
+        {
+          "path": "chapters/13-prose.md",
+          "sha256": "614feaaae1dd05ad590e046772e6d8dda4cf138fc682e9a4bfd2f49d06db9507",
+          "size_bytes": 6513
+        },
+        {
+          "path": "chapters/14-visual-humor.md",
+          "sha256": "22a115688e18c2024dcb467d64b2b6914670896edbd1ad848659f77165e07722",
+          "size_bytes": 6380
+        },
+        {
+          "path": "chapters/15-podcasting.md",
+          "sha256": "487f12b1ffc18b2bb38878e92805e7404d904ced39a12fe33cb76496872ce82f",
+          "size_bytes": 6752
+        },
+        {
+          "path": "chapters/16-conclusion.md",
+          "sha256": "d0c7d986a195262a312dc50fc9830fe9dafd7d52d35911b3ce3075a965c69ffd",
+          "size_bytes": 5514
+        }
+      ]
+    },
+    {
+      "asin": "B00K9PI7AQ",
+      "title": "How to Write Funny",
+      "directory": "how-to-write-funny",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 8,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "03cb88bd3f4a6add595583b4e9c36f0d788a08f16045d6943e321d9790cd329e",
+          "size_bytes": 14182
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "3d03481725173adf530063a889bc7231d758ab0a0e94bc1a2ddf6c9d2058c4f5",
+          "size_bytes": 31726
+        },
+        {
+          "path": "chapters/01-introduction.md",
+          "sha256": "ac6e1cd1c45803e8079a4f794e1fecf1d6eeb1f82262a46992093e82bcd400d2",
+          "size_bytes": 10853
+        },
+        {
+          "path": "chapters/02-your-brains-comedy-engine.md",
+          "sha256": "83dd6e0ce08dfe946529e192f8e9b928cf856f8e43f5c2b68b20fefa59c54d90",
+          "size_bytes": 11804
+        },
+        {
+          "path": "chapters/03-the-humor-writers-biggest-problem.md",
+          "sha256": "c9f48cf6a2743cbb78afab1fd9a9aa6a45e3637ec00875c7e9564d2823c8469b",
+          "size_bytes": 13495
+        },
+        {
+          "path": "chapters/04-how-to-get-laughs.md",
+          "sha256": "8855305daa4559da7ef3bb199fd124641545dfd6cabfe15d1590164b2b9601fd",
+          "size_bytes": 13182
+        },
+        {
+          "path": "chapters/05-the-secret-ingredient.md",
+          "sha256": "7744d088dd83604eff518e1734587fc9ff8de5d6f260bc9f4e4beb6dfc4bb667",
+          "size_bytes": 13879
+        },
+        {
+          "path": "chapters/06-the-11-funny-filters.md",
+          "sha256": "6aed0159e8084c3c482ec10a0acaee75e85f5db2953490f403be5b96e2935ac6",
+          "size_bytes": 27021
+        },
+        {
+          "path": "chapters/07-using-the-funny-filters.md",
+          "sha256": "684d28ab966ea4402e1e7861ae430a2e26ec11a776011bbffc6f216a6fd55bc7",
+          "size_bytes": 15693
+        },
+        {
+          "path": "chapters/08-process-overview.md",
+          "sha256": "d70a6c45bff959dc6206b10f2f81c9aeee5e92fcb3386f64838e454fe73e531b",
+          "size_bytes": 12824
+        }
+      ]
+    },
+    {
+      "asin": "B086MCBS6C",
+      "title": "How to Kill in Comedy",
+      "directory": "how-to-kill-in-comedy",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 41,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "4e520dc820dc199ffd46b4331ce8a778db15e6b8c912486ecfd1ef67fe5f2ecc",
+          "size_bytes": 32840
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "756a84e20c526e74347044a6eda0ac541bb608b29f81849f250a1d43c7ade684",
+          "size_bytes": 42049
+        },
+        {
+          "path": "chapters/00-foreword-overview-introduction.md",
+          "sha256": "54f81315dc193d87b8c7fc031b871eec7e58c0e8c011b5e331cd99835a934034",
+          "size_bytes": 4500
+        },
+        {
+          "path": "chapters/01-what-is-a-standup-comedian.md",
+          "sha256": "e862232b444d77b43d68a11f5a512516a4afa8a4578156a8eebabd91cfede914",
+          "size_bytes": 5986
+        },
+        {
+          "path": "chapters/02-comic-vs-comedian.md",
+          "sha256": "ebdd8df656aab356ecd605a9be44ca5823e5c610488f66be9a2e1d6caafc48ad",
+          "size_bytes": 4778
+        },
+        {
+          "path": "chapters/03-the-four-parts-of-comedic-character.md",
+          "sha256": "43fe638bd447084f5110a9610b74c896693baca42acf6ab85d7f273230ca6165",
+          "size_bytes": 6072
+        },
+        {
+          "path": "chapters/04-flaw.md",
+          "sha256": "1beff6ffa10fdf29436b7cd18ccfcb8adfecc92491e70d151c2199372ebb9167",
+          "size_bytes": 6427
+        },
+        {
+          "path": "chapters/05-blind-spot.md",
+          "sha256": "883b50d43a83cc5bd94b8b703244bd1222a573e68802b4369ee4f46213611690",
+          "size_bytes": 5167
+        },
+        {
+          "path": "chapters/06-attitude.md",
+          "sha256": "954299847e7d495ad77740ef29845ce3a7b23499a078f392c4b66e7ef896802d",
+          "size_bytes": 3923
+        },
+        {
+          "path": "chapters/07-agenda.md",
+          "sha256": "c25f98f4125f58c8a681804bc0be2d06cc76a85bd4c62fdc3e9c1ccd3517b12a",
+          "size_bytes": 4535
+        },
+        {
+          "path": "chapters/08-all-four-tires-and-good-to-go.md",
+          "sha256": "3d9e82c34f2ac854aaa4e736f12a98f2556da8d64f3d56cf20cc64c2cf423c3f",
+          "size_bytes": 2777
+        },
+        {
+          "path": "chapters/09-comedy-formulas-and-stumbling-blocks.md",
+          "sha256": "afaef2ba7a5332c10318f3cdebe56d52c8aee46ee8ae7fbc1f8c627782c69330",
+          "size_bytes": 3980
+        },
+        {
+          "path": "chapters/10-the-caricature-artist.md",
+          "sha256": "c02c9acd86afd3eeb67a7aed941233ff80509b495b22d8d66bec9594c2242cd4",
+          "size_bytes": 3376
+        },
+        {
+          "path": "chapters/11-exaggeration.md",
+          "sha256": "1221892a5fecb3ff28db28ad86dfe922b3daa24895cb81bf69183c3435f05a53",
+          "size_bytes": 2909
+        },
+        {
+          "path": "chapters/12-the-switch.md",
+          "sha256": "881b4a2390365362e8e33f9f30ddee2f73f019fb9f004ecdb43c11b4626f4b34",
+          "size_bytes": 4112
+        },
+        {
+          "path": "chapters/13-combination-out-of-context.md",
+          "sha256": "14607b53b180048fef43b4607bf6abb4fe9b40aa694c1c2de54a695dc112f545",
+          "size_bytes": 5288
+        },
+        {
+          "path": "chapters/14-the-backdown.md",
+          "sha256": "e444a0ac125f63ab4cf03b73a23ebba775d06929284a519f87ea06b6212f004c",
+          "size_bytes": 3481
+        },
+        {
+          "path": "chapters/15-comedic-revenge.md",
+          "sha256": "3f1933508e2929950c1ddcd88c066f7ebde3927258145679585a68953f3193e7",
+          "size_bytes": 3243
+        },
+        {
+          "path": "chapters/16-what-ive-learned.md",
+          "sha256": "1b5e7a4da463084c8941900e2104f0da99902e548538cec951045abb0b1622da",
+          "size_bytes": 3089
+        },
+        {
+          "path": "chapters/17-something-came-over-me.md",
+          "sha256": "359f4ffffe2e9c18fb78d6d5f6c1fdc9e5e5900ae1b2c816c483949ec7cbc312",
+          "size_bytes": 3416
+        },
+        {
+          "path": "chapters/18-list-of-three.md",
+          "sha256": "a8afacca58730ef17084afebfacd6fe4ddab62fa4703c960195f5f9be6594416",
+          "size_bytes": 3239
+        },
+        {
+          "path": "chapters/19-analogy.md",
+          "sha256": "629508f3a87fb308daa7661f639c030b2c627ef74e7e2b163df13e5b172c76b2",
+          "size_bytes": 2523
+        },
+        {
+          "path": "chapters/20-tmi-too-much-information.md",
+          "sha256": "5e49c85763816808e75a77fef9ae55944a0934eee49d42b490d91f216ddc0f09",
+          "size_bytes": 3781
+        },
+        {
+          "path": "chapters/21-brag-about-something-stupid.md",
+          "sha256": "7b5a485b65eae0e360c0ec9724f61ce236ffffec93fabd9e172e37468720cda3",
+          "size_bytes": 2653
+        },
+        {
+          "path": "chapters/22-greeting-cards-or-sayings-gone-bad.md",
+          "sha256": "dcd4c16585462b52a295108cd8cb67ce31f9e40e627830557302adcff14da835",
+          "size_bytes": 2761
+        },
+        {
+          "path": "chapters/23-the-roast-or-compliments-gone-bad.md",
+          "sha256": "e5b0f0bc1369efe45ea767439d1d31778344d77276d3107a2dd9d67325e2c199",
+          "size_bytes": 2713
+        },
+        {
+          "path": "chapters/24-mistaken-who-or-where.md",
+          "sha256": "0ae71d3c64c8456a46ab184970ebd5ffcf1d41e022606bd0f4d474d8dd67f997",
+          "size_bytes": 3697
+        },
+        {
+          "path": "chapters/25-i-knew-it-was-time.md",
+          "sha256": "c69c181229a64dea488d9da0284240b3db674ee73ff27d32c67f96abfe55e27c",
+          "size_bytes": 2579
+        },
+        {
+          "path": "chapters/26-the-reversal.md",
+          "sha256": "da07827eca818ec8e27775c9bcccf832f6d5e4e451be4b90e8d96a60b75523fa",
+          "size_bytes": 3375
+        },
+        {
+          "path": "chapters/27-blind-spot-jokes.md",
+          "sha256": "5b39fc49c51ba5c58250de3079247b24d58f156cb93a7675d61b2371712fddde",
+          "size_bytes": 2563
+        },
+        {
+          "path": "chapters/28-ridiculous-bio.md",
+          "sha256": "4c1bb4453d8d23cf51b260aaa46a5466578bd452cdea1242a6304edd5a463379",
+          "size_bytes": 2987
+        },
+        {
+          "path": "chapters/29-putting-your-set-together.md",
+          "sha256": "cd853286b3d5d40c69dc7ee18a32262558bcdcc47dea0203879f1d854dedff7f",
+          "size_bytes": 5137
+        },
+        {
+          "path": "chapters/30-your-relationship-with-the-audience.md",
+          "sha256": "37393022e036b720f521ae69fb2ffc0f7849374489a1477a445894af045d3a91",
+          "size_bytes": 4189
+        },
+        {
+          "path": "chapters/31-now-that-you-have-their-attention.md",
+          "sha256": "61c1e6ff93bc6edfad162278f3f5f3591f6fb8e8c16ff7dd339cf25e5eaa2699",
+          "size_bytes": 4112
+        },
+        {
+          "path": "chapters/32-what-to-do-when-a-punchline-doesnt-land.md",
+          "sha256": "f28bbe2c13ec4c88bf00e3aead140768de7b91436be3545690ac43207a13e67f",
+          "size_bytes": 3796
+        },
+        {
+          "path": "chapters/33-connecting-with-the-audience.md",
+          "sha256": "f5f2c2c5d4e9e8ce9cdb5539ec9549f9831fac46307986ecbc9d8083afb03ad0",
+          "size_bytes": 3920
+        },
+        {
+          "path": "chapters/34-the-room-and-whos-in-it.md",
+          "sha256": "baa20e9c7f8718a5a10dd80dde9d5fab97b5e7778167994e5a863414769bcddb",
+          "size_bytes": 2994
+        },
+        {
+          "path": "chapters/35-venues.md",
+          "sha256": "4a40c76705722eed983cc86f25c4e9620b7b9bdf4be65287ff7bf3eb7a4cb460",
+          "size_bytes": 3728
+        },
+        {
+          "path": "chapters/36-the-emcee-introduces-you.md",
+          "sha256": "9a55c99f25fa6d242a7eb32f034846698e4cba987df091d3ed8d13995aa11307",
+          "size_bytes": 3334
+        },
+        {
+          "path": "chapters/37-hecklers.md",
+          "sha256": "ed010ec70298cefb6df72d8347cd37354b035f1b85c46d40f412be18532234e9",
+          "size_bytes": 3214
+        },
+        {
+          "path": "chapters/38-be-part-of-the-show.md",
+          "sha256": "5e0dd5fa0ccc62dab9d012e0247bce9eed281dccea9c1f0020b855783f0cf52d",
+          "size_bytes": 3031
+        },
+        {
+          "path": "chapters/39-dealing-with-distractions-the-magic-of-recap.md",
+          "sha256": "dc09b28b57961c0680ef770589cac6fad5aec95a18c869dfe50a4f719bb3973b",
+          "size_bytes": 3089
+        },
+        {
+          "path": "chapters/40-the-biz.md",
+          "sha256": "e8ace46b33abc897ecbe8d543251e77411133335fe2e7545a401d47da881d505",
+          "size_bytes": 4616
+        }
+      ]
+    },
+    {
+      "asin": "B00ZF6H8MC",
+      "title": "Off the Mic",
+      "directory": "off-the-mic",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 17,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "08da908ce2dec8d2ffa5bd456e705147fa220590317a94241a8982b6e1e16d32",
+          "size_bytes": 19889
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "20bc5a5fad60f5625e7d478fb165cb1841960e3b0e75253569dd81cbb25e45d7",
+          "size_bytes": 44501
+        },
+        {
+          "path": "chapters/01-introduction.md",
+          "sha256": "064c1026f68d3560e5ed7d4de4abcebd84d85661b4185c55ba77b06047487db3",
+          "size_bytes": 5451
+        },
+        {
+          "path": "chapters/02-inspiration.md",
+          "sha256": "47979c196de61171696c60ce6658ec36b1a800af4efde43d153920f6ae3881e9",
+          "size_bytes": 15149
+        },
+        {
+          "path": "chapters/03-material.md",
+          "sha256": "002e481f599611334ec25f0cae185c8f379ee7b9bad6299cac6e36030bd4327c",
+          "size_bytes": 16923
+        },
+        {
+          "path": "chapters/04-paul-provenza-interview.md",
+          "sha256": "3a5b57534ebfd8d273672748a0083fffbc1b24bb7e7b74edf3ec75a800e1d0a9",
+          "size_bytes": 10957
+        },
+        {
+          "path": "chapters/05-persona.md",
+          "sha256": "0afb04391bdc03b0ad74c5b67987390710f02429f147ae147380a9a4154905a3",
+          "size_bytes": 15173
+        },
+        {
+          "path": "chapters/06-marcus-brigstocke-interview.md",
+          "sha256": "773ead3752a0d54962e6e805865aad751836f2cd2a1ef317c1417e8182848931",
+          "size_bytes": 10974
+        },
+        {
+          "path": "chapters/07-structuring-your-set.md",
+          "sha256": "47fd6c8c1edfd746564c766dba7e10a9f709da0979203dec97b828dcbf951019",
+          "size_bytes": 12998
+        },
+        {
+          "path": "chapters/08-sarah-millican-interview.md",
+          "sha256": "d4c52260705febb4cef842275cbb9c149328f0ec01572945ca47b3ff19228e74",
+          "size_bytes": 11986
+        },
+        {
+          "path": "chapters/09-getting-started.md",
+          "sha256": "e127459600e591b064670feee50497312d8015f83fa06e4ffc39c916b4e582c3",
+          "size_bytes": 12117
+        },
+        {
+          "path": "chapters/10-stewart-lee-interview.md",
+          "sha256": "0b6f75e36f203fe793d64bf39514b0a857cb421ee9f22c2353685137c4769cc1",
+          "size_bytes": 13731
+        },
+        {
+          "path": "chapters/11-developing-your-comedy.md",
+          "sha256": "3aedd8847675c0d49894c510658dbf013fe0f0dba425956b9d0b0daf714731fa",
+          "size_bytes": 14523
+        },
+        {
+          "path": "chapters/12-robin-ince-interview.md",
+          "sha256": "b918737b3fcc7114c833461429c4449339590c9dd797aadd27718a6b3b73db64",
+          "size_bytes": 10764
+        },
+        {
+          "path": "chapters/13-owning-the-room.md",
+          "sha256": "4fc7f54b37987687ab64b1e61a9fe6586f5cc8dc03b1d0aacb6dc2657b03127d",
+          "size_bytes": 13059
+        },
+        {
+          "path": "chapters/14-alternative-comedy-memorial-society.md",
+          "sha256": "46f340e64c161349a1eb49baef01cacb57ee4088425a3ecdde16a38dbee0f7eb",
+          "size_bytes": 6780
+        },
+        {
+          "path": "chapters/15-the-best-laid-plans.md",
+          "sha256": "9d107b91538660f07d0aef5ede4140b1e778b511da60dc4f8d188516c7b2d7b2",
+          "size_bytes": 16506
+        },
+        {
+          "path": "chapters/16-lifestyle.md",
+          "sha256": "47b196413c56499b910f71c8b819fb88e66dc943389f857bec7a5bdb0da54592",
+          "size_bytes": 15352
+        },
+        {
+          "path": "chapters/17-eddie-izzard-interview.md",
+          "sha256": "fcba88f9100d471e6fd3630f026f32d2a06e7cc824e106db1bf741e8b7f2325f",
+          "size_bytes": 20233
+        }
+      ]
+    },
+    {
+      "asin": "B0847KS4ZN",
+      "title": "The New Comedy Bible",
+      "directory": "the-new-comedy-bible",
+      "audit_verdict": "Ready",
+      "chapter_summary_count": 8,
+      "files": [
+        {
+          "path": "chapter-map.md",
+          "sha256": "6b8a1d31ff1f1a2a01925e4a7a88ca5ae436bba9cae768f06719e0c135219ebc",
+          "size_bytes": 15970
+        },
+        {
+          "path": "book-synthesis.md",
+          "sha256": "7af6f9229dd42eec99c5820af73fb2e91fd75b7f7cdf450872eaedf34ac97626",
+          "size_bytes": 28315
+        },
+        {
+          "path": "chapters/01-prologue-and-jobs-for-funny-people.md",
+          "sha256": "1b6e0f03ae1e146f07098e27e61b3418deb5cb116a2d14f7c5b1c723e6052f82",
+          "size_bytes": 7206
+        },
+        {
+          "path": "chapters/02-introduction-ten-commandments.md",
+          "sha256": "46e2df9a3b6341a82b97e218a75fe02584e52a22a10a424448e87f4abae6171f",
+          "size_bytes": 11244
+        },
+        {
+          "path": "chapters/03-part-one-warm-up.md",
+          "sha256": "ab09e3722cdc25c20f83af4d0195c82030ba6ed31f999c344465c6c5062a2e0d",
+          "size_bytes": 13643
+        },
+        {
+          "path": "chapters/04-part-two-stand-up-comedy-workshop.md",
+          "sha256": "737a1d650a3a1ea415edb284699d7368ec6c302df49fff8037666b33993b503f",
+          "size_bytes": 19161
+        },
+        {
+          "path": "chapters/05-part-three-stand-up-structure.md",
+          "sha256": "d38d41ff74bff34ef10f7eda848b37b763d6d941b9fb5d850794b966f7e87785",
+          "size_bytes": 26263
+        },
+        {
+          "path": "chapters/06-part-four-eight-more-writing-prompts.md",
+          "sha256": "b5f342da9ee46ab7a4676c970e60b4638ffb71e1573d0e00db1529e76bdbf466",
+          "size_bytes": 16010
+        },
+        {
+          "path": "chapters/07-part-five-humor-for-presentations.md",
+          "sha256": "355ad440b293204ec8c72ff09a545398b65391dc13d3ee9330ab87a81cbebb55",
+          "size_bytes": 10067
+        },
+        {
+          "path": "chapters/08-part-six-final-words.md",
+          "sha256": "8a572cc79133af61cd929d2f299cd5e12d375181010db46bd38c4cfe2468eac5",
+          "size_bytes": 9399
+        }
+      ]
+    }
+  ]
+}
